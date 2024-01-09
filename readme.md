@@ -49,20 +49,20 @@ EditIcarusProspect -p friends %localappdata%\Icarus\Saved\PlayerData\[your steam
 The above command updates the prospect to allow friends to join. You can add any of the following commands to the command line depending what you want to change.
 ```
 -n, -name [value]         Set the prospect name to the supplied value.
-						  Note: This will also change the file name.
+                          Note: This will also change the file name.
 
 -p, -privacy [option]     Set the lobby privacy for the prospect to one of the following.
-						  friends    Steam friends can join.
-						  private    No one can join.
+                          friends    Steam friends can join.
+                          private    No one can join.
 
 -d, -difficulty [option]  Set the game difficulty for the prospect to one of [easy, medium, hard, extreme].
-						  Warning: Extreme difficulty is only implemented for outposts. Things will break if
-						  you use it elsewhere.
+                          Warning: Extreme difficulty is only implemented for outposts. Things will break if
+                          you use it elsewhere.
 
 -h, -hardcore [on/off]    Turn on or off the ability to self-respawn if you die in the prospect.
 
 -z, -dropzone [index]     Set the selected drop zone for the prospect.
-						  Warning: Ensure the chosen index is valid for the specific map.
+                          Warning: Ensure the chosen index is valid for the specific map.
 ```
 
 ## How to Build
