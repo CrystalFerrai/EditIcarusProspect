@@ -1,4 +1,4 @@
-# Icarus Resource Respawner
+# Icarus Prospect Editor
 
 A command line program that modifies properties of an Icarus prospect save.
 
