@@ -1,0 +1,3 @@
+[submodule "IcarusSaveLib"]
+	path = IcarusSaveLib
+	url = https://github.com/CrystalFerrai/IcarusSaveLib.git

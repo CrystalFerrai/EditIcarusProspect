@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Title>EditIcarusProspect</Title>
+    <Product>EditIcarusProspect</Product>
+    <Description>Modifies an Icarus prospect save file</Description>
+    <Company>Crystal</Company>
+    <Copyright>Copyright ©2024 Crystal Ferrai</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IcarusSaveLib\IcarusSaveLib\IcarusSaveLib.csproj" />
+    <ProjectReference Include="..\IcarusSaveLib\UeSaveGame\UeSaveGame\UeSaveGame.csproj" />
+  </ItemGroup>
+
+</Project>

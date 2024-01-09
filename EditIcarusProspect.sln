@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EditIcarusProspect", "EditIcarusProspect\EditIcarusProspect.csproj", "{3BAFD82E-A5D7-41E1-B60D-3A6332916367}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IcarusSaveLib", "IcarusSaveLib\IcarusSaveLib\IcarusSaveLib.csproj", "{856F4314-8709-45A2-BEE8-9C4D300BD97A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UeSaveGame", "IcarusSaveLib\UeSaveGame\UeSaveGame\UeSaveGame.csproj", "{9A531DC9-330E-4E98-8D3F-5B78DB64B335}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3BAFD82E-A5D7-41E1-B60D-3A6332916367}.Debug|x64.ActiveCfg = Debug|x64
+		{3BAFD82E-A5D7-41E1-B60D-3A6332916367}.Debug|x64.Build.0 = Debug|x64
+		{3BAFD82E-A5D7-41E1-B60D-3A6332916367}.Release|x64.ActiveCfg = Release|x64
+		{3BAFD82E-A5D7-41E1-B60D-3A6332916367}.Release|x64.Build.0 = Release|x64
+		{856F4314-8709-45A2-BEE8-9C4D300BD97A}.Debug|x64.ActiveCfg = Debug|x64
+		{856F4314-8709-45A2-BEE8-9C4D300BD97A}.Debug|x64.Build.0 = Debug|x64
+		{856F4314-8709-45A2-BEE8-9C4D300BD97A}.Release|x64.ActiveCfg = Release|x64
+		{856F4314-8709-45A2-BEE8-9C4D300BD97A}.Release|x64.Build.0 = Release|x64
+		{9A531DC9-330E-4E98-8D3F-5B78DB64B335}.Debug|x64.ActiveCfg = Debug|x64
+		{9A531DC9-330E-4E98-8D3F-5B78DB64B335}.Debug|x64.Build.0 = Debug|x64
+		{9A531DC9-330E-4E98-8D3F-5B78DB64B335}.Release|x64.ActiveCfg = Release|x64
+		{9A531DC9-330E-4E98-8D3F-5B78DB64B335}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1EFEDD03-60AE-4341-8C43-E018D8A3482C}
+	EndGlobalSection
+EndGlobal
