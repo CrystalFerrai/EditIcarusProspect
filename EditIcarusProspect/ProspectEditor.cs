@@ -259,6 +259,18 @@ namespace EditIcarusProspect
 				}
 			}
 
+			if (charactersToRemove.Count == 0)
+			{
+				mLogger.Log(LogLevel.Information, "No players/characters matching the supplied IDs were found in the prospect.");
+				return false;
+			}
+
+			mLogger.Log(LogLevel.Information, "Removing the following characters from the prospect:");
+			foreach (CharacterData character in charactersToRemove)
+			{
+				mLogger.Log(LogLevel.Information, $"  {character.ToString()}");
+			}
+
 			// Remove from json associated members
 			for (int i = prospect.ProspectInfo.AssociatedMembers.Count - 1; i >= 0; --i)
 			{
