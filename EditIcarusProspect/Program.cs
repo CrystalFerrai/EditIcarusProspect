@@ -20,54 +20,47 @@ namespace EditIcarusProspect
 	{
 		private static int Main(string[] args)
 		{
-			ProgramOptions? options;
-			IReadOnlyList<string>? remainingArgs;
-			if (!ProgramOptions.TryParseCommandLine(args, Console.Error, out options, out remainingArgs))
-			{
-				return OnExit(1);
-			}
+			Logger logger = new ConsoleLogger();
 
-			if (!options.Any() || remainingArgs.Count < 1)
+			if (args.Length == 0)
 			{
-				PrintUsage();
+				PrintUsage(logger);
 				return OnExit(0);
 			}
 
-			IEnumerable<string> unknownOptions = remainingArgs.Where(a => a.StartsWith('-'));
-			if (unknownOptions.Any())
+			ProgramOptions? options;
+			if (!ProgramOptions.TryParseCommandLine(args, logger, out options))
 			{
-				Console.Error.WriteLine($"Error: Unrecognized options: {string.Join(", ", unknownOptions)}");
+				PrintUsage(logger);
 				return OnExit(1);
 			}
 
-			if (remainingArgs.Count > 1)
+			if (!options.Any())
 			{
-				Console.Error.WriteLine("Error: Too many parameters");
-				return OnExit(1);
+				PrintUsage(logger);
+				return OnExit(0);
 			}
 
-			string prospectPath = remainingArgs[0];
-
-			if (!File.Exists(prospectPath))
+			if (!File.Exists(options.ProspectPath))
 			{
-				Console.Error.WriteLine($"Error: File not found or not accessible: {prospectPath}");
+				logger.LogError($"File not found or not accessible: {options.ProspectPath}");
 				return OnExit(1);
 			}
 
 			bool success;
 			try
 			{
-				success = UpdateProspect(prospectPath, options, Console.Out, Console.Error, Console.Out);
+				success = UpdateProspect(options, logger);
 			}
 			catch (Exception ex)
 			{
-				Console.Error.WriteLine($"[Error] {ex.GetType().FullName}: {ex.Message}");
+				logger.LogError($"[Error] {ex.GetType().FullName}: {ex.Message}");
 				success = false;
 			}
 
 			if (success)
 			{
-				Console.Out.WriteLine("Done.");
+				logger.Log(LogLevel.Important, "Done.");
 			}
 
 			return OnExit(success ? 0 : 1);
@@ -82,31 +75,32 @@ namespace EditIcarusProspect
 			return code;
 		}
 
-		private static void PrintUsage()
+		private static void PrintUsage(Logger logger, LogLevel logLevel = LogLevel.Information)
 		{
 			string optionIndent = "    ";
-			Console.Out.WriteLine($"Usage: EditIcarusProspect [options] path\n");
-			ProgramOptions.PrintCommandLineOptions(Console.Out, optionIndent);
-			Console.Out.WriteLine($"\n{optionIndent}{"path",-ProgramOptions.MaxOptionStringLength}  The path to the prospect save json file to modify. Recommended to backup file first.\n");
-			Console.Out.WriteLine("Note: Must select at least one action to perform.");
+			logger.Log(logLevel, $"Usage: EditIcarusProspect [options] path\n");
+			ProgramOptions.PrintCommandLineOptions(logger, indent: optionIndent);
+			logger.Log(logLevel, $"\n{optionIndent}{"path",-ProgramOptions.MaxOptionStringLength}  The path to the prospect save json file to modify. Recommended to backup file first.\n");
+			logger.Log(logLevel, "Note: Must select at least one action to perform.");
 		}
 
-		private static bool UpdateProspect(string path, ProgramOptions options, TextWriter outputLog, TextWriter errorLog, TextWriter warningLog)
+		private static bool UpdateProspect(ProgramOptions options, Logger logger)
 		{
+			string path = options.ProspectPath;
 			string oldPath = path;
 			if (options.ProspectName is not null)
 			{
 				path = Path.Combine(Path.GetDirectoryName(path)!, $"{options.ProspectName}.json");
 				if (File.Exists(path))
 				{
-					errorLog.WriteLine($"Error: Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
+					logger.LogError($"Error: Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
 					return false;
 				}
 			}
 
 			ProspectSave? prospect;
 
-			outputLog.WriteLine("Loading prospect...");
+			logger.Log(LogLevel.Important, "Loading prospect...");
 
 			try
 			{
@@ -117,23 +111,24 @@ namespace EditIcarusProspect
 			}
 			catch (Exception ex)
 			{
-				errorLog.Write($"Error reading prospect file. [{ex.GetType().FullName}] {ex.Message}");
+				logger.LogError($"Error reading prospect file. [{ex.GetType().FullName}] {ex.Message}");
 				return false;
 			}
 
 			if (prospect == null)
 			{
-				errorLog.Write("Error reading prospect file. Could not load Json.");
+				logger.LogError("Error reading prospect file. Could not load Json.");
 				return false;
 			}
 
-			ProspectEditor editor = new(outputLog, errorLog, warningLog);
+			ProspectEditor editor = new(logger);
 			if (!editor.Run(prospect, options))
 			{
-				return false;
+				// Run indicated not to save
+				return true;
 			}
 
-			outputLog.WriteLine("Saving prospect...");
+			logger.Log(LogLevel.Important, "Saving prospect...");
 
 			using (FileStream file = File.Create(path))
 			{

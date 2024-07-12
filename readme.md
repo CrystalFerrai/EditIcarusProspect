@@ -63,6 +63,17 @@ The above command updates the prospect to allow friends to join. You can add any
 
 -z, -dropzone [index]     Set the selected drop zone for the prospect.
                           Warning: Ensure the chosen index is valid for the specific map.
+-l, -list                 Prints information about all player characters stored in the prospect.
+
+-r, -remove [players]     Removes listed player characters and their rockets. List a player's Steam ID to
+                          remove all of that player's characters. To remove only a specific character, list
+                          a Steam ID followed by a hyphen, followed by the character slot number. Separate
+                          list entries with commas. Do not include any spaces.
+
+                          Example: -r 76561100000000000,76561150505050505-0,76561123232323232
+
+                          Warning: Players removed this way will not be able to reclaim their loadout unless
+                          it is insured.
 ```
 
 ## How to Build

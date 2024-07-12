@@ -21,15 +21,11 @@ namespace EditIcarusProspect
 {
 	internal class ProspectEditor
 	{
-		TextWriter mOutputLog;
-		TextWriter mErrorLog;
-		TextWriter mWarningLog;
+		private readonly Logger mLogger;
 
-		public ProspectEditor(TextWriter outputLog, TextWriter errorLog, TextWriter warningLog)
+		public ProspectEditor(Logger logger)
 		{
-			mOutputLog = outputLog;
-			mErrorLog = errorLog;
-			mWarningLog = warningLog;
+			mLogger = logger;
 		}
 
 		public bool Run(ProspectSave prospect, ProgramOptions options)
@@ -37,11 +33,13 @@ namespace EditIcarusProspect
 			ArrayProperty? stateRecorderBlobs = prospect.ProspectData[0] as ArrayProperty;
 			if (stateRecorderBlobs?.Value == null)
 			{
-				mErrorLog.WriteLine("Error reading prospect. Failed to locate state recorder array at index 0.");
+				mLogger.LogError("Error reading prospect. Failed to locate state recorder array at index 0.");
 				return false;
 			}
 
-			mOutputLog.WriteLine("Modifying prospect...");
+			mLogger.Log(LogLevel.Important, "Processing...");
+
+			bool changed = false;
 
 			if (options.ProspectName is not null)
 			{
@@ -49,6 +47,7 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
+				changed = true;
 			}
 
 			if (options.LobbyPrivacy != ELobbyPrivacy.Unknown)
@@ -57,7 +56,8 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
-            }
+				changed = true;
+			}
 
 			if (options.Difficulty != EMissionDifficulty.None)
 			{
@@ -65,6 +65,7 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
+				changed = true;
 			}
 
 			if (options.Hardcore.HasValue)
@@ -73,6 +74,7 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
+				changed = true;
 			}
 
 			if (options.DropZone.HasValue)
@@ -81,9 +83,27 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
+				changed = true;
 			}
 
-			return true;
+			if (options.ListPlayers)
+			{
+				if (!ListPlayers(prospect))
+				{
+					return false;
+				}
+			}
+
+			if (options.PlayersToRemove is not null)
+			{
+				if (!RemovePlayers(prospect, options.PlayersToRemove))
+				{
+					return false;
+				}
+				changed = true;
+			}
+
+			return changed;
 		}
 
 		private bool UpdateProspectName(ProspectSave prospect, string name)
@@ -102,7 +122,7 @@ namespace EditIcarusProspect
 
 			prospectIdProperty.Value = new FString(name);
 
-			mOutputLog.WriteLine($"Prospect name changed from '{oldName}' to '{name}'");
+			mLogger.Log(LogLevel.Information, $"Prospect name changed from '{oldName}' to '{name}'");
 
 			return true;
 		}
@@ -112,7 +132,7 @@ namespace EditIcarusProspect
 			EnumProperty? lobbyPrivacyProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("LobbyPrivacy")) as EnumProperty;
 			if (lobbyPrivacyProperty is null)
 			{
-				mErrorLog.WriteLine("Error locating lobby privacy property");
+				mLogger.LogError("Error locating lobby privacy property");
 				return false;
 			}
 
@@ -120,7 +140,7 @@ namespace EditIcarusProspect
 
 			lobbyPrivacyProperty.Value = new FString($"{nameof(ELobbyPrivacy)}::{lobbyPrivacy}");
 
-			mOutputLog.WriteLine($"Lobby privacy changed from '{oldLobbyPrivacy}' to '{lobbyPrivacy}'.");
+			mLogger.Log(LogLevel.Information, $"Lobby privacy changed from '{oldLobbyPrivacy}' to '{lobbyPrivacy}'.");
 
 			return true;
 		}
@@ -141,7 +161,7 @@ namespace EditIcarusProspect
 
 			difficultyProperty.Value = new FString($"{nameof(EMissionDifficulty)}::{difficulty}");
 
-			mOutputLog.WriteLine($"Difficulty changed from '{oldDifficulty}' to '{difficulty}'.");
+			mLogger.Log(LogLevel.Information, $"Difficulty changed from '{oldDifficulty}' to '{difficulty}'.");
 
 			return true;
 		}
@@ -162,7 +182,7 @@ namespace EditIcarusProspect
 
 			noRespawnsProperty.Value = enable;
 
-			mOutputLog.WriteLine($"Hardcore changed from '{oldEnable}' to '{(enable ? "on" : "off")}'.");
+			mLogger.Log(LogLevel.Information, $"Hardcore changed from '{oldEnable}' to '{(enable ? "on" : "off")}'.");
 
 			return true;
 		}
@@ -183,7 +203,155 @@ namespace EditIcarusProspect
 
 			selectedDropPointProperty.Value = dropZone;
 
-			mOutputLog.WriteLine($"Drop zone changed from '{oldDropZone}' to '{dropZone}'.");
+			mLogger.Log(LogLevel.Information, $"Drop zone changed from '{oldDropZone}' to '{dropZone}'.");
+
+			return true;
+		}
+
+		private bool ListPlayers(ProspectSave prospect)
+		{
+			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger);
+
+			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
+			foreach (CharacterData character in characters.Characters)
+			{
+				string output = $"{character.ID,-24}{character.Name,-24}";
+
+				foreach (UProperty prop in character.RocketRecorder.Data)
+				{
+					if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
+					{
+						VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
+						output += $"{spawnLocationStruct.Value.X:0},{spawnLocationStruct.Value.Y:0}";
+						break;
+					}
+				}
+				mLogger.Log(LogLevel.Information, output);
+			}
+
+			return true;
+		}
+
+		private bool RemovePlayers(ProspectSave prospect, IReadOnlyList<string> playersToRemove)
+		{
+			List<CharacterID> inputCharacters = new();
+			foreach (string input in playersToRemove)
+			{
+				if (!CharacterID.TryParse(input, out CharacterID characterId))
+				{
+					mLogger.LogError($"Could not parse input as a character ID: {input}");
+					return false;
+				}
+				inputCharacters.Add(characterId);
+			}
+
+			HashSet<CharacterData> charactersToRemove = new();
+
+			CharactersData allCharacters = CharacterReader.ReadCharacters(prospect, mLogger);
+			foreach (CharacterData character in allCharacters.Characters)
+			{
+				foreach (CharacterID inputCharacter in inputCharacters)
+				{
+					if (character.ID.Matches(inputCharacter))
+					{
+						charactersToRemove.Add(character);
+					}
+				}
+			}
+
+			// Remove from json associated members
+			for (int i = prospect.ProspectInfo.AssociatedMembers.Count - 1; i >= 0; --i)
+			{
+				FAssociatedMember member = prospect.ProspectInfo.AssociatedMembers[i];
+				CharacterID id = new(member.UserID, member.ChrSlot);
+				foreach (CharacterData removeCharacter in charactersToRemove)
+				{
+					if (removeCharacter.ID.Matches(id))
+					{
+						prospect.ProspectInfo.AssociatedMembers.RemoveAt(i);
+						break;
+					}
+				}
+			}
+
+			// Remove from binary associated members
+			foreach (UProperty prop in prospect.ProspectData)
+			{
+				if (prop.Name.Value.Equals("ProspectInfo", StringComparison.OrdinalIgnoreCase))
+				{
+					PropertiesStruct infoProperties = (PropertiesStruct)prop.Value!;
+					foreach (UProperty infoProp in infoProperties.Properties)
+					{
+						if (infoProp.Name.Value.Equals("AssociatedMembers"))
+						{
+							ArrayProperty membersArray = (ArrayProperty)infoProp;
+							List<UProperty> membersToKeep = new();
+							foreach (UProperty memberProp in membersArray.Value!)
+							{
+								bool keep = true;
+								CharacterID? id = CharacterReader.ReadCharacterID(memberProp);
+								if (id.HasValue)
+								{
+									foreach (CharacterData removeCharacter in charactersToRemove)
+									{
+										if (removeCharacter.ID.Matches(id.Value))
+										{
+											keep = false;
+											break;
+										}
+									}
+								}
+								if (keep)
+								{
+									membersToKeep.Add(memberProp);
+								}
+							}
+							membersArray.Value = membersToKeep.ToArray();
+
+							break;
+						}
+					}
+
+					break;
+				}
+			}
+
+			// Remove from recorders
+			HashSet<int> historyIndicesToRemove = charactersToRemove.Select(c => c.HistoryIndex).ToHashSet();
+			foreach (UProperty prop in allCharacters.PlayerHistoryRecorder.Data)
+			{
+				if (prop.Name.Value.Equals("SavedHistoryData"))
+				{
+					ArrayProperty savedHistoryProperty = (ArrayProperty)prop;
+					List<UProperty> historyToKeep = new();
+					for (int i = 0; i < savedHistoryProperty.Value!.Length; ++i)
+					{
+						if (historyIndicesToRemove.Contains(i)) continue;
+						historyToKeep.Add(savedHistoryProperty.Value[i]);
+					}
+					savedHistoryProperty.Value = historyToKeep.ToArray();
+					
+					break;
+				}
+			}
+
+			HashSet<int> recordersToRemove = new();
+			foreach (CharacterData character in charactersToRemove)
+			{
+				recordersToRemove.Add(character.PlayerRecorder.Index);
+				recordersToRemove.Add(character.PlayerStateRecorder.Index);
+				recordersToRemove.Add(character.RocketSpawnRecorder.Index);
+				recordersToRemove.Add(character.RocketRecorder.Index);
+			}
+
+			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0];
+			List<UProperty> propsToKeep = new();
+			for (int i = 0; i < recorderProperties.Value!.Length; ++i)
+			{
+				if (recordersToRemove.Contains(i)) continue;
+				propsToKeep.Add(recorderProperties.Value[i]);
+			}
+			recorderProperties.Value = propsToKeep.ToArray();
 
 			return true;
 		}
@@ -193,14 +361,14 @@ namespace EditIcarusProspect
 			StructProperty? prospectInfoProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("ProspectInfo")) as StructProperty;
 			if (prospectInfoProperty is null)
 			{
-				mErrorLog.WriteLine("Error locating prospect info property inside binary blob");
+				mLogger.LogError("Error locating prospect info property inside binary blob");
 				return null;
 			}
 
 			PropertiesStruct? prospectInfoPropertyData = prospectInfoProperty.Value as PropertiesStruct;
 			if (prospectInfoPropertyData is null)
 			{
-				mErrorLog.WriteLine("Error reading prospect info property inside binary blob");
+				mLogger.LogError("Error reading prospect info property inside binary blob");
 				return null;
 			}
 
@@ -215,10 +383,57 @@ namespace EditIcarusProspect
 			T? property = prospectInfo.Properties.FirstOrDefault(p => p.Name.Equals(propertyName)) as T;
             if (property is null)
 			{
-				mErrorLog.WriteLine($"Error locating property '{propertyName}' inside binary blob");
+				mLogger.LogError($"Error locating property '{propertyName}' inside binary blob");
 			}
 			return property;
         }
+
+#if DEBUG
+		private void DebugProspect(ProspectSave prospect)
+		{
+			UProperty[] recorderProperties = (UProperty[])prospect.ProspectData[0].Value!;
+
+			Dictionary<string, int> stateRecorderCounts = new(StringComparer.OrdinalIgnoreCase);
+			foreach (StructProperty recorderProperty in recorderProperties)
+			{
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Value!).Value;
+
+				int value;
+				if (!stateRecorderCounts.TryGetValue(recorderName, out value))
+				{
+					value = 0;
+				}
+				++value;
+
+				stateRecorderCounts[recorderName] = value;
+			}
+
+			HashSet<string> recordersToRead = new(StringComparer.OrdinalIgnoreCase)
+			{
+				"/Script/Icarus.GameModeStateRecorderComponent",
+				"/Script/Icarus.PlayerHistoryRecorderComponent",
+				"/Script/Icarus.DynamicRocketSpawnRecorderComponent",
+				"/Script/Icarus.RocketRecorderComponent",
+				"/Script/Icarus.PlayerRecorderComponent",
+				"/Script/Icarus.PlayerStateRecorderComponent"
+			};
+
+			List<KeyValuePair<string, IList<UProperty>>> recorderData = new();
+			
+			foreach (StructProperty recorderProperty in recorderProperties)
+			{
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Value!).Value;
+
+				if (!recordersToRead.Contains(recorderName)) continue;
+
+				recorderData.Add(new(recorderName, ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1])));
+			}
+
+			System.Diagnostics.Debugger.Break();
+		}
+#endif
 
 		private static string GetEnumValue(string? enumPair, string defaultValue)
 		{
