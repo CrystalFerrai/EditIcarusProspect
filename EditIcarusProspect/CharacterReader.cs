@@ -27,9 +27,11 @@ namespace EditIcarusProspect
 		/// </summary>
 		/// <param name="prospect">The prospect to read</param>
 		/// <param name="logger">For logging errors</param>
-		public static CharactersData ReadCharacters(ProspectSave prospect, Logger logger)
+		/// <param name="sort">Whether to sort the list of characters</param>
+		public static CharactersData ReadCharacters(ProspectSave prospect, Logger logger, bool sort = false)
 		{
-			CharactersData result = new() { Characters = new List<CharacterData>() };
+			List<CharacterData> characters = new();
+			CharactersData result = new() { Characters = characters };
 
 			HashSet<string> recordersToRead = new(StringComparer.OrdinalIgnoreCase)
 			{
@@ -199,7 +201,7 @@ namespace EditIcarusProspect
 					rocketRecorder = default;
 				}
 
-				result.Characters.Add(new(charId.Value)
+				characters.Add(new(charId.Value)
 				{
 					Name = charName,
 					RocketSpawnId = rocketSpawnId,
@@ -210,6 +212,11 @@ namespace EditIcarusProspect
 					RocketSpawnRecorder = rocketSpawnRecorder,
 					RocketRecorder = rocketRecorder
 				});
+			}
+
+			if (sort)
+			{
+				characters.Sort();
 			}
 
 			return result;
@@ -264,7 +271,7 @@ namespace EditIcarusProspect
 	/// <summary>
 	/// Data about a specific character
 	/// </summary>
-	internal struct CharacterData
+	internal struct CharacterData : IEquatable<CharacterData>, IComparable<CharacterData>
 	{
 		public readonly CharacterID ID;
 		public string? Name;
@@ -289,7 +296,17 @@ namespace EditIcarusProspect
 
 		public override readonly bool Equals([NotNullWhen(true)] object? obj)
 		{
-			return obj is CharacterData other && ID.Equals(other.ID);
+			return obj is CharacterData other && Equals(other);
+		}
+
+		public readonly bool Equals(CharacterData other)
+		{
+			return ID.Equals(other.ID);
+		}
+
+		public readonly int CompareTo(CharacterData other)
+		{
+			return ID.CompareTo(other.ID);
 		}
 
 		public override readonly string ToString()

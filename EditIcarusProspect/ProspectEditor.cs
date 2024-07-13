@@ -210,7 +210,7 @@ namespace EditIcarusProspect
 
 		private bool ListPlayers(ProspectSave prospect)
 		{
-			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger);
+			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
 
 			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
 			foreach (CharacterData character in characters.Characters)
