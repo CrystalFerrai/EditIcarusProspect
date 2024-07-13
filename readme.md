@@ -63,6 +63,7 @@ The above command updates the prospect to allow friends to join. You can add any
 
 -z, -dropzone [index]     Set the selected drop zone for the prospect.
                           Warning: Ensure the chosen index is valid for the specific map.
+
 -l, -list                 Prints information about all player characters stored in the prospect.
 
 -r, -remove [players]     Removes listed player characters and their rockets. List a player's Steam ID to
