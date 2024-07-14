@@ -4,7 +4,7 @@ A command line program that modifies properties of an Icarus prospect save.
 
 ## Features
 
-This program allows you to set new values for various properties of an Icarus prospect save as well as allowing you to rename the prospect. See the "How to use" section for a complete list of properties that can be edited.
+This program allows you to set new values for various properties of an Icarus prospect save as well as allowing you to rename the prospect. See the "How to use" section for a complete list of features and how to use them.
 
 ## Releases
 
@@ -65,6 +65,9 @@ The above command updates the prospect to allow friends to join. You can add any
                           Warning: Ensure the chosen index is valid for the specific map.
 
 -l, -list                 Prints information about all player characters stored in the prospect.
+
+-c, -cleanup              Removes any rockets or other player data that is not associated with a valid player.
+                          Run this if you see any warnings when running -list that you want to clean up.
 
 -r, -remove [players]     Removes listed player characters and their rockets. List a player's Steam ID to
                           remove all of that player's characters. To remove only a specific character, list
