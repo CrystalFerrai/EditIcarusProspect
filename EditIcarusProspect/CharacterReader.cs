@@ -114,7 +114,7 @@ namespace EditIcarusProspect
 							savedHistoryProperty = (ArrayProperty)prop;
 							for (int j = 0; j < savedHistoryProperty.Value!.Length; ++j)
 							{
-								UProperty history = savedHistoryProperty.Value[j];
+								UProperty history = ((UProperty[])savedHistoryProperty.Value)[j];
 
 								string? id = null;
 								int slot = -1;
@@ -404,11 +404,21 @@ namespace EditIcarusProspect
 
 		public readonly bool Equals(CharacterID other)
 		{
+			if (PlayerID is null) return other.PlayerID is null && Slot.Equals(other.Slot);
 			return PlayerID.Equals(other.PlayerID) && Slot.Equals(other.Slot);
 		}
 
 		public readonly int CompareTo(CharacterID other)
 		{
+			if (PlayerID is null)
+			{
+				if (other.PlayerID is not null)
+				{
+					return -1;
+				}
+				return Slot.CompareTo(other.Slot);
+			}
+
 			int result = PlayerID.CompareTo(other.PlayerID);
 			if (result == 0)
 			{

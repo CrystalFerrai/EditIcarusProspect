@@ -278,7 +278,7 @@ namespace EditIcarusProspect
 				foreach (RecorderData recorder in characters.UnownedRocketSpawns)
 				{
 					int actorId = -1;
-					Vector? actorLocation = null;
+					FVector? actorLocation = null;
 					foreach (UProperty prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
@@ -304,7 +304,7 @@ namespace EditIcarusProspect
 				foreach (RecorderData recorder in characters.UnownedRockets)
 				{
 					int actorId = -1;
-					Vector? actorLocation = null;
+					FVector? actorLocation = null;
 					foreach (UProperty prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
@@ -419,7 +419,7 @@ namespace EditIcarusProspect
 					for (int i = 0; i < savedHistoryProperty.Value!.Length; ++i)
 					{
 						if (historyIndicesToRemove.Contains(i)) continue;
-						historyToKeep.Add(savedHistoryProperty.Value[i]);
+						historyToKeep.Add(((UProperty[])savedHistoryProperty.Value)[i]);
 					}
 					savedHistoryProperty.Value = historyToKeep.ToArray();
 					
@@ -450,7 +450,7 @@ namespace EditIcarusProspect
 			for (int i = 0; i < recorderProperties.Value!.Length; ++i)
 			{
 				if (recordersToRemove.Contains(i)) continue;
-				propsToKeep.Add(recorderProperties.Value[i]);
+				propsToKeep.Add(((UProperty[])recorderProperties.Value)[i]);
 			}
 			recorderProperties.Value = propsToKeep.ToArray();
 
