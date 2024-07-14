@@ -14,9 +14,9 @@
 
 using IcarusSaveLib;
 using System.Diagnostics.CodeAnalysis;
+using UeSaveGame;
 using UeSaveGame.PropertyTypes;
 using UeSaveGame.StructData;
-using UeSaveGame;
 
 namespace EditIcarusProspect
 {
@@ -48,9 +48,9 @@ namespace EditIcarusProspect
 			ArrayProperty? savedHistoryProperty = null;
 			Dictionary<CharacterID, string> characterNameMap = new();
 			Dictionary<CharacterID, int> characterHistoryIndexMap = new();
-			Dictionary<CharacterID, RecorderData> playerStateRecorderMap = new();
-			Dictionary<int, RecorderData> rocketSpawnRecorderMap = new();
-			Dictionary<int, RecorderData> rocketRecorderMap = new();
+			Dictionary<CharacterID, RecorderData?> playerStateRecorderMap = new();
+			Dictionary<int, RecorderData?> rocketSpawnRecorderMap = new();
+			Dictionary<int, RecorderData?> rocketRecorderMap = new();
 
 			for (int i = 0; i < recorderProperties.Length; ++i)
 			{
@@ -186,19 +186,31 @@ namespace EditIcarusProspect
 					historyIndex = -1;
 				}
 
-				if (!playerStateRecorderMap.TryGetValue(charId.Value, out RecorderData playerStateRecorder))
+				if (playerStateRecorderMap.TryGetValue(charId.Value, out RecorderData? playerStateRecorder))
 				{
-					playerStateRecorder = default;
+					playerStateRecorderMap.Remove(charId.Value);
+				}
+				else
+				{
+					playerStateRecorder = null;
 				}
 
-				if (rocketSpawnId < 0 || !rocketSpawnRecorderMap.TryGetValue(rocketSpawnId, out RecorderData rocketSpawnRecorder))
+				if (rocketSpawnId >= 0 && rocketSpawnRecorderMap.TryGetValue(rocketSpawnId, out RecorderData? rocketSpawnRecorder))
 				{
-					rocketSpawnRecorder = default;
+					rocketSpawnRecorderMap.Remove(rocketSpawnId);
+				}
+				else
+				{
+					rocketSpawnRecorder = null;
 				}
 
-				if (rocketId < 0 || !rocketRecorderMap.TryGetValue(rocketId, out RecorderData rocketRecorder))
+				if (rocketId >= 0 && rocketRecorderMap.TryGetValue(rocketId, out RecorderData? rocketRecorder))
 				{
-					rocketRecorder = default;
+					rocketRecorderMap.Remove(rocketId);
+				}
+				else
+				{
+					rocketRecorder = null;
 				}
 
 				characters.Add(new(charId.Value)
@@ -217,6 +229,19 @@ namespace EditIcarusProspect
 			if (sort)
 			{
 				characters.Sort();
+			}
+
+			if (playerStateRecorderMap.Count > 0)
+			{
+				result.UnownedPlayerStates = new List<RecorderData>(playerStateRecorderMap.Values.Select(r => r!.Value));
+			}
+			if (rocketSpawnRecorderMap.Count > 0)
+			{
+				result.UnownedRocketSpawns = new List<RecorderData>(rocketSpawnRecorderMap.Values.Select(r => r!.Value));
+			}
+			if (rocketRecorderMap.Count > 0)
+			{
+				result.UnownedRockets = new List<RecorderData>(rocketRecorderMap.Values.Select(r => r!.Value));
 			}
 
 			return result;
@@ -262,6 +287,10 @@ namespace EditIcarusProspect
 
 		public RecorderData PlayerHistoryRecorder;
 
+		public IReadOnlyList<RecorderData>? UnownedPlayerStates;
+		public IReadOnlyList<RecorderData>? UnownedRocketSpawns;
+		public IReadOnlyList<RecorderData>? UnownedRockets;
+
 		public override readonly string ToString()
 		{
 			return $"{Characters.Count} characters";
@@ -280,9 +309,9 @@ namespace EditIcarusProspect
 		public int HistoryIndex;
 
 		public RecorderData PlayerRecorder;
-		public RecorderData PlayerStateRecorder;
-		public RecorderData RocketSpawnRecorder;
-		public RecorderData RocketRecorder;
+		public RecorderData? PlayerStateRecorder;
+		public RecorderData? RocketSpawnRecorder;
+		public RecorderData? RocketRecorder;
 
 		public CharacterData(CharacterID id)
 		{

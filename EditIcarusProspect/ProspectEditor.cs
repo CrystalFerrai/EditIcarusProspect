@@ -14,11 +14,15 @@
 
 using IcarusSaveLib;
 using UeSaveGame;
+using UeSaveGame.DataTypes;
 using UeSaveGame.PropertyTypes;
 using UeSaveGame.StructData;
 
 namespace EditIcarusProspect
 {
+	/// <summary>
+	/// Processes/updates a prospect save
+	/// </summary>
 	internal class ProspectEditor
 	{
 		private readonly Logger mLogger;
@@ -28,6 +32,12 @@ namespace EditIcarusProspect
 			mLogger = logger;
 		}
 
+		/// <summary>
+		/// Process/update a prospect
+		/// </summary>
+		/// <param name="prospect">The prospect to update</param>
+		/// <param name="options">Decsription of updates to perform</param>
+		/// <returns>True if the prospect has been modified as a result of this run, else false</returns>
 		public bool Run(ProspectSave prospect, ProgramOptions options)
 		{
 			ArrayProperty? stateRecorderBlobs = prospect.ProspectData[0] as ArrayProperty;
@@ -212,21 +222,103 @@ namespace EditIcarusProspect
 		{
 			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
 
+			mLogger.LogEmptyLine(LogLevel.Information);
 			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
 			foreach (CharacterData character in characters.Characters)
 			{
 				string output = $"{character.ID,-24}{character.Name,-24}";
 
-				foreach (UProperty prop in character.RocketRecorder.Data)
+				if (character.RocketRecorder.HasValue)
 				{
-					if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
+					foreach (UProperty prop in character.RocketRecorder.Value.Data)
 					{
-						VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
-						output += $"{spawnLocationStruct.Value.X:0},{spawnLocationStruct.Value.Y:0}";
-						break;
+						if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
+						{
+							VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
+							output += $"{spawnLocationStruct.Value.X:0},{spawnLocationStruct.Value.Y:0}";
+							break;
+						}
 					}
 				}
+				else
+				{
+					output += "[No Rocket]";
+				}
 				mLogger.Log(LogLevel.Information, output);
+			}
+
+			if (characters.UnownedPlayerStates is not null && characters.UnownedPlayerStates.Count > 0)
+			{
+				mLogger.LogEmptyLine(LogLevel.Information);
+				mLogger.Log(LogLevel.Warning, $"Found {characters.UnownedPlayerStates.Count} player states not associated with a valid player.");
+				foreach (RecorderData recorder in characters.UnownedPlayerStates)
+				{
+					UProperty? idProperty = recorder.Data.FirstOrDefault(p => p.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase));
+					CharacterID? id = null;
+					if (idProperty is not null)
+					{
+						id = CharacterReader.ReadCharacterID(idProperty);
+					}
+
+					if (id.HasValue)
+					{
+						mLogger.Log(LogLevel.Warning, id.Value.ToString());
+					}
+					else
+					{
+						mLogger.Log(LogLevel.Warning, "(No ID)");
+					}
+				}
+			}
+
+			if (characters.UnownedRocketSpawns is not null && characters.UnownedRocketSpawns.Count > 0)
+			{
+				mLogger.LogEmptyLine(LogLevel.Information);
+				mLogger.Log(LogLevel.Warning, $"Found {characters.UnownedRocketSpawns.Count} rocket spawn actors not owned by any player.");
+				foreach (RecorderData recorder in characters.UnownedRocketSpawns)
+				{
+					int actorId = -1;
+					Vector? actorLocation = null;
+					foreach (UProperty prop in recorder.Data)
+					{
+						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
+						{
+							actorId = (int)prop.Value!;
+						}
+						else if (prop.Name.Value.Equals("ActorTransform", StringComparison.OrdinalIgnoreCase))
+						{
+							PropertiesStruct transformStruct = (PropertiesStruct)prop.Value!;
+							UProperty translationProp = transformStruct.Properties.First(p => p.Name.Value.Equals("Translation", StringComparison.OrdinalIgnoreCase));
+							VectorStruct locationStruct = (VectorStruct)translationProp.Value!;
+							actorLocation = locationStruct.Value;
+						}
+					}
+					mLogger.Log(LogLevel.Warning, $"[{(actorId >= 0 ? actorId.ToString() : "No ID")}] ({(actorLocation.HasValue ? $"{actorLocation.Value.X:0},{actorLocation.Value.Y:0}" : "No Location")})");
+				}
+			}
+
+			if (characters.UnownedRockets is not null && characters.UnownedRockets.Count > 0)
+			{
+				mLogger.LogEmptyLine(LogLevel.Information);
+				mLogger.Log(LogLevel.Warning, $"Found {characters.UnownedRockets.Count} rocket actors not owned by any player.");
+				foreach (RecorderData recorder in characters.UnownedRockets)
+				{
+					int actorId = -1;
+					Vector? actorLocation = null;
+					foreach (UProperty prop in recorder.Data)
+					{
+						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
+						{
+							actorId = (int)prop.Value!;
+						}
+						else if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
+						{
+							VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
+							actorLocation = spawnLocationStruct.Value;
+						}
+					}
+					mLogger.Log(LogLevel.Warning, $"[{(actorId >= 0 ? actorId.ToString() : "No ID")}] ({(actorLocation.HasValue ? $"{actorLocation.Value.X:0},{actorLocation.Value.Y:0}" : "No Location")})");
+				}
 			}
 
 			return true;
@@ -287,44 +379,32 @@ namespace EditIcarusProspect
 			}
 
 			// Remove from binary associated members
-			foreach (UProperty prop in prospect.ProspectData)
 			{
-				if (prop.Name.Value.Equals("ProspectInfo", StringComparison.OrdinalIgnoreCase))
+				ArrayProperty? associatedMembersProperty = GetProspectInfoProperty<ArrayProperty>(prospect, nameof(FProspectInfo.AssociatedMembers));
+				if (associatedMembersProperty is not null)
 				{
-					PropertiesStruct infoProperties = (PropertiesStruct)prop.Value!;
-					foreach (UProperty infoProp in infoProperties.Properties)
+					List<UProperty> membersToKeep = new();
+					foreach (UProperty memberProp in associatedMembersProperty.Value!)
 					{
-						if (infoProp.Name.Value.Equals("AssociatedMembers"))
+						bool keep = true;
+						CharacterID? id = CharacterReader.ReadCharacterID(memberProp);
+						if (id.HasValue)
 						{
-							ArrayProperty membersArray = (ArrayProperty)infoProp;
-							List<UProperty> membersToKeep = new();
-							foreach (UProperty memberProp in membersArray.Value!)
+							foreach (CharacterData removeCharacter in charactersToRemove)
 							{
-								bool keep = true;
-								CharacterID? id = CharacterReader.ReadCharacterID(memberProp);
-								if (id.HasValue)
+								if (removeCharacter.ID.Matches(id.Value))
 								{
-									foreach (CharacterData removeCharacter in charactersToRemove)
-									{
-										if (removeCharacter.ID.Matches(id.Value))
-										{
-											keep = false;
-											break;
-										}
-									}
-								}
-								if (keep)
-								{
-									membersToKeep.Add(memberProp);
+									keep = false;
+									break;
 								}
 							}
-							membersArray.Value = membersToKeep.ToArray();
-
-							break;
+						}
+						if (keep)
+						{
+							membersToKeep.Add(memberProp);
 						}
 					}
-
-					break;
+					associatedMembersProperty.Value = membersToKeep.ToArray();
 				}
 			}
 
@@ -351,9 +431,18 @@ namespace EditIcarusProspect
 			foreach (CharacterData character in charactersToRemove)
 			{
 				recordersToRemove.Add(character.PlayerRecorder.Index);
-				recordersToRemove.Add(character.PlayerStateRecorder.Index);
-				recordersToRemove.Add(character.RocketSpawnRecorder.Index);
-				recordersToRemove.Add(character.RocketRecorder.Index);
+				if (character.PlayerStateRecorder.HasValue)
+				{
+					recordersToRemove.Add(character.PlayerStateRecorder.Value.Index);
+				}
+				if (character.RocketSpawnRecorder.HasValue)
+				{
+					recordersToRemove.Add(character.RocketSpawnRecorder.Value.Index);
+				}
+				if (character.RocketRecorder.HasValue)
+				{
+					recordersToRemove.Add(character.RocketRecorder.Value.Index);
+				}
 			}
 
 			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0];
@@ -399,53 +488,6 @@ namespace EditIcarusProspect
 			}
 			return property;
         }
-
-#if DEBUG
-		private void DebugProspect(ProspectSave prospect)
-		{
-			UProperty[] recorderProperties = (UProperty[])prospect.ProspectData[0].Value!;
-
-			Dictionary<string, int> stateRecorderCounts = new(StringComparer.OrdinalIgnoreCase);
-			foreach (StructProperty recorderProperty in recorderProperties)
-			{
-				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
-				string recorderName = ((FString)recorderValue.Properties[0].Value!).Value;
-
-				int value;
-				if (!stateRecorderCounts.TryGetValue(recorderName, out value))
-				{
-					value = 0;
-				}
-				++value;
-
-				stateRecorderCounts[recorderName] = value;
-			}
-
-			HashSet<string> recordersToRead = new(StringComparer.OrdinalIgnoreCase)
-			{
-				"/Script/Icarus.GameModeStateRecorderComponent",
-				"/Script/Icarus.PlayerHistoryRecorderComponent",
-				"/Script/Icarus.DynamicRocketSpawnRecorderComponent",
-				"/Script/Icarus.RocketRecorderComponent",
-				"/Script/Icarus.PlayerRecorderComponent",
-				"/Script/Icarus.PlayerStateRecorderComponent"
-			};
-
-			List<KeyValuePair<string, IList<UProperty>>> recorderData = new();
-			
-			foreach (StructProperty recorderProperty in recorderProperties)
-			{
-				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
-				string recorderName = ((FString)recorderValue.Properties[0].Value!).Value;
-
-				if (!recordersToRead.Contains(recorderName)) continue;
-
-				recorderData.Add(new(recorderName, ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1])));
-			}
-
-			System.Diagnostics.Debugger.Break();
-		}
-#endif
 
 		private static string GetEnumValue(string? enumPair, string defaultValue)
 		{

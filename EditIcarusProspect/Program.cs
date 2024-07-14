@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using IcarusSaveLib;
+using System.Text;
 
 namespace EditIcarusProspect
 {
@@ -21,6 +22,14 @@ namespace EditIcarusProspect
 		private static int Main(string[] args)
 		{
 			Logger logger = new ConsoleLogger();
+			try
+			{
+				Console.OutputEncoding = Encoding.UTF8;
+			}
+			catch (Exception ex)
+			{
+				logger.Log(LogLevel.Warning, $"Unable to set output to UTF. Some characters may not print correctly. Error: [{ex.GetType().FullName}] {ex.Message}");
+			}
 
 			if (args.Length == 0)
 			{
@@ -54,7 +63,7 @@ namespace EditIcarusProspect
 			}
 			catch (Exception ex)
 			{
-				logger.LogError($"[Error] {ex.GetType().FullName}: {ex.Message}");
+				logger.LogError($"{ex.GetType().FullName}: {ex.Message}");
 				success = false;
 			}
 
@@ -70,7 +79,7 @@ namespace EditIcarusProspect
 		{
 			if (System.Diagnostics.Debugger.IsAttached)
 			{
-				Console.ReadKey();
+				Console.ReadKey(true);
 			}
 			return code;
 		}
@@ -93,7 +102,7 @@ namespace EditIcarusProspect
 				path = Path.Combine(Path.GetDirectoryName(path)!, $"{options.ProspectName}.json");
 				if (File.Exists(path))
 				{
-					logger.LogError($"Error: Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
+					logger.LogError($"Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
 					return false;
 				}
 			}
