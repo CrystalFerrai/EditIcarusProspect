@@ -57,13 +57,18 @@ namespace EditIcarusProspect
 		public bool ListPlayers { get; }
 
 		/// <summary>
+		/// Instructs the program to cleanup unassociated player related recorders
+		/// </summary>
+		public bool RunCleanup { get; }
+
+		/// <summary>
 		/// A list of players to remove fromt he prospect
 		/// </summary>
 		public IReadOnlyList<string>? PlayersToRemove { get; }
 
 		public const int MaxOptionStringLength = 24; // Length of "-d, -difficulty [option]"
 
-		public ProgramOptions(string prospectPath, string? prospectName, ELobbyPrivacy lobbyPrivacy, EMissionDifficulty difficulty, bool? hardcore, int? dropZone, bool listPlayers, IReadOnlyList<string>? playersToRemove)
+		public ProgramOptions(string prospectPath, string? prospectName, ELobbyPrivacy lobbyPrivacy, EMissionDifficulty difficulty, bool? hardcore, int? dropZone, bool listPlayers, bool runCleanup, IReadOnlyList<string>? playersToRemove)
 		{
 			ProspectPath = prospectPath;
 			ProspectName = prospectName;
@@ -72,6 +77,7 @@ namespace EditIcarusProspect
 			Hardcore = hardcore;
 			DropZone = dropZone;
 			ListPlayers = listPlayers;
+			RunCleanup = runCleanup;
 			PlayersToRemove = playersToRemove;
 		}
 
@@ -95,6 +101,9 @@ namespace EditIcarusProspect
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}-l, -list                 Prints information about all player characters stored in the prospect.");
 			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}-c, -cleanup              Removes any rockets or other player data that is not associated with a valid player.");
+			logger.Log(logLevel, $"{indent}                          Run this if you see any warnings when running -list that you want to clean up.");
+			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}-r, -remove [players]     Removes listed player characters and their rockets. List a player's Steam ID to");
 			logger.Log(logLevel, $"{indent}                          remove all of that player's characters. To remove only a specific character, list");
 			logger.Log(logLevel, $"{indent}                          a Steam ID followed by a hyphen, followed by the character slot number. Separate");
@@ -117,6 +126,7 @@ namespace EditIcarusProspect
 			bool? hardcore = null;
 			int? dropZone = null;
 			bool listPlayers = false;
+			bool runCleanup = false;
 			List<string>? playersToRemove = null;
 
 			int positionalArgIndex = 0;
@@ -318,6 +328,12 @@ namespace EditIcarusProspect
 								listPlayers = true;
 							}
 							break;
+						case "c":
+						case "cleanup":
+							{
+								runCleanup = true;
+							}
+							break;
 						case "r":
 						case "remove":
 							{
@@ -365,7 +381,7 @@ namespace EditIcarusProspect
 				return false;
 			}
 
-			options = new ProgramOptions(prospectPath, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, listPlayers, playersToRemove);
+			options = new ProgramOptions(prospectPath, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, listPlayers, runCleanup, playersToRemove);
 			return true;
 		}
 
@@ -377,6 +393,7 @@ namespace EditIcarusProspect
 				|| Hardcore.HasValue
 				|| DropZone.HasValue
 				|| ListPlayers
+				|| RunCleanup
 				|| PlayersToRemove is not null;
 		}
 	}

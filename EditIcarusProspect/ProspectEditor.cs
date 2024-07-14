@@ -104,6 +104,15 @@ namespace EditIcarusProspect
 				}
 			}
 
+			if (options.RunCleanup)
+			{
+				if (!CleanupUnassociatedRecorders(prospect))
+				{
+					return false;
+				}
+				changed = true;
+			}
+
 			if (options.PlayersToRemove is not null)
 			{
 				if (!RemovePlayers(prospect, options.PlayersToRemove))
@@ -222,6 +231,8 @@ namespace EditIcarusProspect
 		{
 			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
 
+			mLogger.Log(LogLevel.Information, $"Listing {characters.Characters.Count} characters...");
+
 			mLogger.LogEmptyLine(LogLevel.Information);
 			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
 			foreach (CharacterData character in characters.Characters)
@@ -320,6 +331,52 @@ namespace EditIcarusProspect
 					mLogger.Log(LogLevel.Warning, $"[{(actorId >= 0 ? actorId.ToString() : "No ID")}] ({(actorLocation.HasValue ? $"{actorLocation.Value.X:0},{actorLocation.Value.Y:0}" : "No Location")})");
 				}
 			}
+
+			mLogger.LogEmptyLine(LogLevel.Information);
+
+			return true;
+		}
+
+		private bool CleanupUnassociatedRecorders(ProspectSave prospect)
+		{
+			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
+
+			HashSet<int> recordersToRemove = new();
+
+			if (characters.UnownedPlayerStates is not null && characters.UnownedPlayerStates.Count > 0)
+			{
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedPlayerStates.Count} unassociated player states...");
+				foreach (RecorderData recorder in characters.UnownedPlayerStates)
+				{
+					recordersToRemove.Add(recorder.Index);
+				}
+			}
+
+			if (characters.UnownedRocketSpawns is not null && characters.UnownedRocketSpawns.Count > 0)
+			{
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedRocketSpawns.Count} unowned rocket spawns...");
+				foreach (RecorderData recorder in characters.UnownedRocketSpawns)
+				{
+					recordersToRemove.Add(recorder.Index);
+				}
+			}
+
+			if (characters.UnownedRockets is not null && characters.UnownedRockets.Count > 0)
+			{
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedRockets.Count} unowned rockets...");
+				foreach (RecorderData recorder in characters.UnownedRockets)
+				{
+					recordersToRemove.Add(recorder.Index);
+				}
+			}
+
+			if (recordersToRemove.Count == 0)
+			{
+				mLogger.Log(LogLevel.Information, "Found nothing to cleanup.");
+				return true;
+			}
+
+			RemoveRecorders(prospect, recordersToRemove);
 
 			return true;
 		}
@@ -444,16 +501,8 @@ namespace EditIcarusProspect
 					recordersToRemove.Add(character.RocketRecorder.Value.Index);
 				}
 			}
-
-			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0];
-			List<UProperty> propsToKeep = new();
-			for (int i = 0; i < recorderProperties.Value!.Length; ++i)
-			{
-				if (recordersToRemove.Contains(i)) continue;
-				propsToKeep.Add(((UProperty[])recorderProperties.Value)[i]);
-			}
-			recorderProperties.Value = propsToKeep.ToArray();
-
+			RemoveRecorders(prospect, recordersToRemove);
+					
 			return true;
 		}
 
@@ -500,6 +549,18 @@ namespace EditIcarusProspect
 			}
 			
 			return enumPair;
+		}
+
+		private static void RemoveRecorders(ProspectSave prospect, IReadOnlySet<int> recordersToRemove)
+		{
+			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0];
+			List<UProperty> propsToKeep = new();
+			for (int i = 0; i < recorderProperties.Value!.Length; ++i)
+			{
+				if (recordersToRemove.Contains(i)) continue;
+				propsToKeep.Add(((UProperty[])recorderProperties.Value)[i]);
+			}
+			recorderProperties.Value = propsToKeep.ToArray();
 		}
 	}
 }
