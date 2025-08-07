@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2025 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ namespace EditIcarusProspect
 				"/Script/Icarus.PlayerStateRecorderComponent"
 			};
 
-			UProperty[] recorderProperties = (UProperty[])prospect.ProspectData[0].Value!;
+			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
 
 			List<RecorderData> playerRecorders = new();
 			ArrayProperty? savedHistoryProperty = null;
@@ -56,11 +56,11 @@ namespace EditIcarusProspect
 			{
 				StructProperty recorderProperty = (StructProperty)recorderProperties[i];
 				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
-				string recorderName = ((FString)recorderValue.Properties[0].Value!).Value;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
 
 				if (!recordersToRead.Contains(recorderName)) continue;
 
-				IList<UProperty> recorderData = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+				IList<FPropertyTag> recorderData = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
 				RecorderData recorder = new() { Name = recorderName, Index = i, Data = recorderData };
 
 				if (recorderName.Equals("/Script/Icarus.PlayerRecorderComponent", StringComparison.OrdinalIgnoreCase))
@@ -69,36 +69,36 @@ namespace EditIcarusProspect
 				}
 				else if (recorderName.Equals("/Script/Icarus.PlayerStateRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
-					foreach (UProperty prop in recorder.Data)
+					foreach (FPropertyTag prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase))
 						{
-							CharacterID? id = ReadCharacterID(prop);
-                            if (id.HasValue)
-                            {
+							CharacterID? id = ReadCharacterID(prop.Property!);
+							if (id.HasValue)
+							{
 								playerStateRecorderMap.Add(id.Value, recorder);
-                            }
-                        }
+							}
+						}
 					}
 				}
 				else if (recorderName.Equals("/Script/Icarus.DynamicRocketSpawnRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
-					foreach (UProperty prop in recorder.Data)
+					foreach (FPropertyTag prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
 						{
-							int uid = (int)prop.Value!;
+							int uid = (int)prop.Property!.Value!;
 							rocketSpawnRecorderMap.Add(uid, recorder);
 						}
 					}
 				}
 				else if (recorderName.Equals("/Script/Icarus.RocketRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
-					foreach (UProperty prop in recorder.Data)
+					foreach (FPropertyTag prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
 						{
-							int uid = (int)prop.Value!;
+							int uid = (int)prop.Property!.Value!;
 							rocketRecorderMap.Add(uid, recorder);
 						}
 					}
@@ -107,33 +107,33 @@ namespace EditIcarusProspect
 				{
 					result.PlayerHistoryRecorder = recorder;
 
-					foreach (UProperty prop in result.PlayerHistoryRecorder.Data)
+					foreach (FPropertyTag prop in result.PlayerHistoryRecorder.Data)
 					{
 						if (prop.Name.Value.Equals("SavedHistoryData"))
 						{
-							savedHistoryProperty = (ArrayProperty)prop;
+							savedHistoryProperty = (ArrayProperty)prop.Property!;
 							for (int j = 0; j < savedHistoryProperty.Value!.Length; ++j)
 							{
-								UProperty history = ((UProperty[])savedHistoryProperty.Value)[j];
+								FProperty history = ((FProperty[])savedHistoryProperty.Value)[j];
 
 								string? id = null;
 								int slot = -1;
 								string? name = null;
 
 								PropertiesStruct savedHistoryData = (PropertiesStruct)history.Value!;
-								foreach (UProperty historyProp in savedHistoryData.Properties)
+								foreach (FPropertyTag historyProp in savedHistoryData.Properties)
 								{
 									if (historyProp.Name.Value.Equals("UserID", StringComparison.OrdinalIgnoreCase))
 									{
-										id = ((FString)historyProp.Value!).Value;
+										id = ((FString)historyProp.Property!.Value!).Value;
 									}
 									else if (historyProp.Name.Value.Equals("ChrSlot", StringComparison.OrdinalIgnoreCase))
 									{
-										slot = (int)historyProp.Value!;
+										slot = (int)historyProp.Property!.Value!;
 									}
 									else if (historyProp.Name.Value.Equals("CachedCharacterName", StringComparison.OrdinalIgnoreCase))
 									{
-										name = ((FString)historyProp.Value!).Value;
+										name = ((FString)historyProp.Property!.Value!).Value;
 									}
 								}
 
@@ -155,19 +155,19 @@ namespace EditIcarusProspect
 				CharacterID? charId = null;
 				int rocketSpawnId = -1;
 				int rocketId = -1;
-				foreach (UProperty prop in recorder.Data)
+				foreach (FPropertyTag prop in recorder.Data)
 				{
 					if (prop.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase))
 					{
-						charId = ReadCharacterID(prop);
+						charId = ReadCharacterID(prop.Property!);
 					}
 					else if (prop.Name.Value.Equals("AssignedDropshipSpawnUID", StringComparison.OrdinalIgnoreCase))
 					{
-						rocketSpawnId = (int)prop.Value!;
+						rocketSpawnId = (int)prop.Property!.Value!;
 					}
 					else if (prop.Name.Value.Equals("AssignedDropshipUID", StringComparison.OrdinalIgnoreCase))
 					{
-						rocketId = (int)prop.Value!;
+						rocketId = (int)prop.Property!.Value!;
 					}
 				}
 				if (!charId.HasValue)
@@ -252,7 +252,7 @@ namespace EditIcarusProspect
 		/// </summary>
 		/// <param name="idProperty">The struct property containing a character id</param>
 		/// <returns>The character id, or null if no character id could be read</returns>
-		public static CharacterID? ReadCharacterID(UProperty idProperty)
+		public static CharacterID? ReadCharacterID(FProperty idProperty)
 		{
 			string? id = null;
 			int slot = -1;
@@ -260,16 +260,16 @@ namespace EditIcarusProspect
 			{
 				return null;
 			}
-			foreach (UProperty prop in charIdStruct.Properties)
+			foreach (FPropertyTag prop in charIdStruct.Properties)
 			{
 				if (prop.Name.Value.Equals("UserID", StringComparison.OrdinalIgnoreCase) ||
 					prop.Name.Value.Equals("PlayerID", StringComparison.OrdinalIgnoreCase))
 				{
-					id = ((FString)prop.Value!).Value;
+					id = ((FString)prop.Property!.Value!).Value;
 				}
 				else if (prop.Name.Value.Equals("ChrSlot", StringComparison.OrdinalIgnoreCase))
 				{
-					slot = (int)prop.Value!;
+					slot = (int)prop.Property!.Value!;
 				}
 			}
 
@@ -450,7 +450,7 @@ namespace EditIcarusProspect
 	{
 		public string Name;
 		public int Index;
-		public IList<UProperty> Data;
+		public IList<FPropertyTag> Data;
 
 		public override readonly string ToString()
 		{

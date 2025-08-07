@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2025 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ namespace EditIcarusProspect
 		/// <returns>True if the prospect has been modified as a result of this run, else false</returns>
 		public bool Run(ProspectSave prospect, ProgramOptions options)
 		{
-			ArrayProperty? stateRecorderBlobs = prospect.ProspectData[0] as ArrayProperty;
+			ArrayProperty? stateRecorderBlobs = prospect.ProspectData[0].Property as ArrayProperty;
 			if (stateRecorderBlobs?.Value == null)
 			{
 				mLogger.LogError("Error reading prospect. Failed to locate state recorder array at index 0.");
@@ -148,7 +148,7 @@ namespace EditIcarusProspect
 
 		private bool UpdateLobbyPrivacy(ProspectSave prospect, ELobbyPrivacy lobbyPrivacy)
 		{
-			EnumProperty? lobbyPrivacyProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("LobbyPrivacy")) as EnumProperty;
+			EnumProperty? lobbyPrivacyProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("LobbyPrivacy"))?.Property as EnumProperty;
 			if (lobbyPrivacyProperty is null)
 			{
 				mLogger.LogError("Error locating lobby privacy property");
@@ -241,11 +241,11 @@ namespace EditIcarusProspect
 
 				if (character.RocketRecorder.HasValue)
 				{
-					foreach (UProperty prop in character.RocketRecorder.Value.Data)
+					foreach (FPropertyTag prop in character.RocketRecorder.Value.Data)
 					{
 						if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
 						{
-							VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
+							VectorStruct spawnLocationStruct = (VectorStruct)prop.Property!.Value!;
 							output += $"{spawnLocationStruct.Value.X:0},{spawnLocationStruct.Value.Y:0}";
 							break;
 						}
@@ -264,11 +264,11 @@ namespace EditIcarusProspect
 				mLogger.Log(LogLevel.Warning, $"Found {characters.UnownedPlayerStates.Count} player states not associated with a valid player.");
 				foreach (RecorderData recorder in characters.UnownedPlayerStates)
 				{
-					UProperty? idProperty = recorder.Data.FirstOrDefault(p => p.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase));
+					FPropertyTag? idProperty = recorder.Data.FirstOrDefault(p => p.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase));
 					CharacterID? id = null;
 					if (idProperty is not null)
 					{
-						id = CharacterReader.ReadCharacterID(idProperty);
+						id = CharacterReader.ReadCharacterID(idProperty.Property!);
 					}
 
 					if (id.HasValue)
@@ -290,17 +290,17 @@ namespace EditIcarusProspect
 				{
 					int actorId = -1;
 					FVector? actorLocation = null;
-					foreach (UProperty prop in recorder.Data)
+					foreach (FPropertyTag prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
 						{
-							actorId = (int)prop.Value!;
+							actorId = (int)prop.Property!.Value!;
 						}
 						else if (prop.Name.Value.Equals("ActorTransform", StringComparison.OrdinalIgnoreCase))
 						{
-							PropertiesStruct transformStruct = (PropertiesStruct)prop.Value!;
-							UProperty translationProp = transformStruct.Properties.First(p => p.Name.Value.Equals("Translation", StringComparison.OrdinalIgnoreCase));
-							VectorStruct locationStruct = (VectorStruct)translationProp.Value!;
+							PropertiesStruct transformStruct = (PropertiesStruct)prop.Property!.Value!;
+							FPropertyTag translationProp = transformStruct.Properties.First(p => p.Name.Value.Equals("Translation", StringComparison.OrdinalIgnoreCase));
+							VectorStruct locationStruct = (VectorStruct)translationProp.Property!.Value!;
 							actorLocation = locationStruct.Value;
 						}
 					}
@@ -316,15 +316,15 @@ namespace EditIcarusProspect
 				{
 					int actorId = -1;
 					FVector? actorLocation = null;
-					foreach (UProperty prop in recorder.Data)
+					foreach (FPropertyTag prop in recorder.Data)
 					{
 						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
 						{
-							actorId = (int)prop.Value!;
+							actorId = (int)prop.Property!.Value!;
 						}
 						else if (prop.Name.Value.Equals("SpawnLocation", StringComparison.OrdinalIgnoreCase))
 						{
-							VectorStruct spawnLocationStruct = (VectorStruct)prop.Value!;
+							VectorStruct spawnLocationStruct = (VectorStruct)prop.Property!.Value!;
 							actorLocation = spawnLocationStruct.Value;
 						}
 					}
@@ -440,8 +440,8 @@ namespace EditIcarusProspect
 				ArrayProperty? associatedMembersProperty = GetProspectInfoProperty<ArrayProperty>(prospect, nameof(FProspectInfo.AssociatedMembers));
 				if (associatedMembersProperty is not null)
 				{
-					List<UProperty> membersToKeep = new();
-					foreach (UProperty memberProp in associatedMembersProperty.Value!)
+					List<FProperty> membersToKeep = new();
+					foreach (FProperty memberProp in associatedMembersProperty.Value!)
 					{
 						bool keep = true;
 						CharacterID? id = CharacterReader.ReadCharacterID(memberProp);
@@ -467,19 +467,19 @@ namespace EditIcarusProspect
 
 			// Remove from recorders
 			HashSet<int> historyIndicesToRemove = charactersToRemove.Select(c => c.HistoryIndex).ToHashSet();
-			foreach (UProperty prop in allCharacters.PlayerHistoryRecorder.Data)
+			foreach (FPropertyTag prop in allCharacters.PlayerHistoryRecorder.Data)
 			{
 				if (prop.Name.Value.Equals("SavedHistoryData"))
 				{
-					ArrayProperty savedHistoryProperty = (ArrayProperty)prop;
-					List<UProperty> historyToKeep = new();
+					ArrayProperty savedHistoryProperty = (ArrayProperty)prop.Property!;
+					List<FProperty> historyToKeep = new();
 					for (int i = 0; i < savedHistoryProperty.Value!.Length; ++i)
 					{
 						if (historyIndicesToRemove.Contains(i)) continue;
-						historyToKeep.Add(((UProperty[])savedHistoryProperty.Value)[i]);
+						historyToKeep.Add(((FProperty[])savedHistoryProperty.Value)[i]);
 					}
 					savedHistoryProperty.Value = historyToKeep.ToArray();
-					
+
 					break;
 				}
 			}
@@ -502,13 +502,13 @@ namespace EditIcarusProspect
 				}
 			}
 			RemoveRecorders(prospect, recordersToRemove);
-					
+
 			return true;
 		}
 
 		private PropertiesStruct? GetProspectInfo(ProspectSave prospect)
 		{
-			StructProperty? prospectInfoProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("ProspectInfo")) as StructProperty;
+			StructProperty? prospectInfoProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("ProspectInfo"))?.Property as StructProperty;
 			if (prospectInfoProperty is null)
 			{
 				mLogger.LogError("Error locating prospect info property inside binary blob");
@@ -525,18 +525,18 @@ namespace EditIcarusProspect
 			return prospectInfoPropertyData;
 		}
 
-		private T? GetProspectInfoProperty<T>(ProspectSave prospect, string propertyName) where T : UProperty
+		private T? GetProspectInfoProperty<T>(ProspectSave prospect, string propertyName) where T : FProperty
 		{
 			PropertiesStruct? prospectInfo = GetProspectInfo(prospect);
 			if (prospectInfo is null) return null;
 
-			T? property = prospectInfo.Properties.FirstOrDefault(p => p.Name.Equals(propertyName)) as T;
-            if (property is null)
+			T? property = prospectInfo.Properties.FirstOrDefault(p => p.Name.Equals(propertyName))?.Property as T;
+			if (property is null)
 			{
 				mLogger.LogError($"Error locating property '{propertyName}' inside binary blob");
 			}
 			return property;
-        }
+		}
 
 		private static string GetEnumValue(string? enumPair, string defaultValue)
 		{
@@ -547,18 +547,18 @@ namespace EditIcarusProspect
 			{
 				return enumPair[(separatorIndex + 2)..];
 			}
-			
+
 			return enumPair;
 		}
 
 		private static void RemoveRecorders(ProspectSave prospect, IReadOnlySet<int> recordersToRemove)
 		{
-			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0];
-			List<UProperty> propsToKeep = new();
+			ArrayProperty recorderProperties = (ArrayProperty)prospect.ProspectData[0].Property!;
+			List<FProperty> propsToKeep = new();
 			for (int i = 0; i < recorderProperties.Value!.Length; ++i)
 			{
 				if (recordersToRemove.Contains(i)) continue;
-				propsToKeep.Add(((UProperty[])recorderProperties.Value)[i]);
+				propsToKeep.Add(((FProperty[])recorderProperties.Value)[i]);
 			}
 			recorderProperties.Value = propsToKeep.ToArray();
 		}

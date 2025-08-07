@@ -15,8 +15,8 @@
     <Description>Modifies an Icarus prospect save file</Description>
     <Company>Crystal</Company>
     <Authors>Crystal Ferrai</Authors>
-    <Copyright>Copyright © 2024 Crystal Ferrai</Copyright>
-	<Version>1.2.0.0</Version>
+    <Copyright>Copyright © 2025 Crystal Ferrai</Copyright>
+	<Version>1.2.1.0</Version>
 	<ProductVersion>$(Version)</ProductVersion>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
