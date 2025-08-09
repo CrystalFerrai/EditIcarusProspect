@@ -10,7 +10,9 @@ This program allows you to set new values for various properties of an Icarus pr
 
 Releases can be found [here](https://github.com/CrystalFerrai/EditIcarusProspect/releases). There is no installer, just unzip the contents to a location on your hard drive.
 
-You will need to have the .NET Runtime 7.0 x64 installed. You can find the latest .NET 7 downloads [here](https://dotnet.microsoft.com/en-us/download/dotnet/7.0). Look for ".NET Runtime" or ".NET Desktop Runtime" (which includes .NET Runtime). Download and install the x64 version for your OS.
+You will need to have the .NET Runtime 8.0 x64 installed. You can find the latest .NET 8 downloads [here](https://dotnet.microsoft.com/en-us/download/dotnet/8.0). Look for ".NET Runtime" or ".NET Desktop Runtime" (which includes .NET Runtime). Download and install the x64 version for your OS.
+
+**Prior to release version 1.3**, You will need to have the .NET Runtime 7.0 x64 installed. You can find the latest .NET 7 downloads [here](https://dotnet.microsoft.com/en-us/download/dotnet/7.0). Look for ".NET Runtime" or ".NET Desktop Runtime" (which includes .NET Runtime). Download and install the x64 version for your OS.
 
 ## How to Use
 
