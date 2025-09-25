@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using IcarusSaveLib;
+using System.Diagnostics.CodeAnalysis;
 using UeSaveGame;
 using UeSaveGame.DataTypes;
 using UeSaveGame.PropertyTypes;
@@ -94,6 +95,24 @@ namespace EditIcarusProspect
 					return false;
 				}
 				changed = true;
+			}
+
+			if (options.Mission.HasValue)
+			{
+				if (!ProcessMissionHistory(prospect, options.Mission.Value))
+				{
+					return false;
+				}
+				changed |= options.Mission.Value.Command != MissionCommand.List;
+			}
+
+			if (options.Prebuilt.HasValue)
+			{
+				if (!ProcessPrebuilts(prospect, options.Prebuilt.Value))
+				{
+					return false;
+				}
+				changed |= options.Prebuilt.Value.Command != PrebuiltCommand.List;
 			}
 
 			if (options.ListPlayers)
@@ -227,11 +246,360 @@ namespace EditIcarusProspect
 			return true;
 		}
 
+		private bool ProcessMissionHistory(ProspectSave prospect, MissionOptions options)
+		{
+			switch (options.Command)
+			{
+				case MissionCommand.List:
+					return ListMissionHistory(prospect);
+				case MissionCommand.Remove:
+					return RemoveFromMissionHistory(prospect, options.Parameters);
+				case MissionCommand.Clear:
+					return ClearMissionHistory(prospect);
+				default:
+					mLogger.LogError("Invalid mission history command");
+					return false;
+			}
+		}
+
+		private bool ListMissionHistory(ProspectSave prospect)
+		{
+			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
+			{
+				mLogger.LogError("Error: Unable to locate mission history");
+				return false;
+			}
+
+			mLogger.Log(LogLevel.Information, "Listing mission history records");
+			mLogger.Log(LogLevel.Information, $"{"Index",-5}  {"Mission Name",-32}{"Status",-14}{"End Time"}");
+
+			for (int i = 0; i < missionHistory.Value!.Length; ++i)
+			{
+				StructProperty historyProperty = (StructProperty)missionHistory.Value!.GetValue(i)!;
+
+				string? name = null;
+				int? status = null;
+				int? endTime = null;
+
+				foreach (FPropertyTag entryProperty in ((PropertiesStruct)(historyProperty.Value!)).Properties)
+				{
+					switch (entryProperty.Name.Value)
+					{
+						case "Mission":
+							name = ((StrProperty)entryProperty.Property!).Value!.Value;
+							break;
+						case "Status":
+							status = ((IntProperty)entryProperty.Property!).Value;
+							break;
+						case "MissionEndTime":
+							endTime = ((IntProperty)entryProperty.Property!).Value;
+							break;
+					}
+				}
+
+				if (name is null) name = "NAME_MISSING";
+
+				string statusStr;
+				if (!status.HasValue) statusStr = "STATUS_MISSING";
+				else statusStr = ((EMissionState)status).ToString();
+
+				string? endTimeStr;
+				if (!endTime.HasValue) endTimeStr = null;
+				else endTimeStr = FormatTimestamp(endTime.Value);
+
+				mLogger.Log(LogLevel.Information, $"{i,5}  {name,-32}{statusStr,-14}{endTimeStr}");
+			}
+
+			return true;
+		}
+
+		private bool RemoveFromMissionHistory(ProspectSave prospect, int[] missionsToRemove)
+		{
+			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
+			{
+				mLogger.LogError("Error: Unable to locate mission history");
+				return false;
+			}
+
+			mLogger.Log(LogLevel.Information, $"Removing mission history records at indeces: {string.Join(',', missionsToRemove)}");
+
+			HashSet<int> toRemove = new(missionsToRemove);
+
+			FProperty[] newHistory = new FProperty[missionHistory.Value!.Length - missionsToRemove.Length];
+			for (int inIndex = 0, outIndex = 0; inIndex < missionHistory.Value!.Length; ++inIndex)
+			{
+				if (toRemove.Contains(inIndex)) continue;
+
+				newHistory[outIndex] = (FProperty)missionHistory.Value!.GetValue(inIndex)!;
+				++outIndex;
+			}
+			missionHistory.Value = newHistory;
+
+			recorder.Properties[1] = ProspectSerlializationUtil.SerializeRecorderData(recorder.Properties[1], recorderProperties);
+
+			return true;
+		}
+
+		private bool ClearMissionHistory(ProspectSave prospect)
+		{
+			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
+			{
+				mLogger.LogError("Error: Unable to locate mission history");
+				return false;
+			}
+
+			mLogger.Log(LogLevel.Information, "Removing all history records");
+
+			missionHistory.Value = new FProperty[0];
+			recorder.Properties[1] = ProspectSerlializationUtil.SerializeRecorderData(recorder.Properties[1], recorderProperties);
+
+			return true;
+		}
+
+		private static bool TryGetMissionHistoryProperty(
+			ProspectSave prospect,
+			[NotNullWhen(true)] out ArrayProperty? array,
+			[NotNullWhen(true)] out PropertiesStruct? recorder,
+			[NotNullWhen(true)] out IList<FPropertyTag>? recorderProperties)
+		{
+			array = null;
+			recorder = null;
+			recorderProperties = null;
+
+			FProperty[] recorders = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			for (int i = 0; i < recorders.Length; ++i)
+			{
+				StructProperty recorderProperty = (StructProperty)recorders[i];
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+
+				if (!recorderName.Equals("/Script/Icarus.GameModeStateRecorderComponent")) continue;
+
+				IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+
+				FPropertyTag? missionHistoryProperty = properties.FirstOrDefault(p => p.Name.Equals("MissionHistory"));
+				if (missionHistoryProperty is null)
+				{
+					return false;
+				}
+
+				array = (ArrayProperty)missionHistoryProperty.Property!;
+				recorder = recorderValue;
+				recorderProperties = properties;
+				return true;
+			}
+
+			return false;
+		}
+
+		private bool ProcessPrebuilts(ProspectSave prospect, PrebuiltOptions options)
+		{
+			switch (options.Command)
+			{
+				case PrebuiltCommand.List:
+					return ListPrebuilts(prospect);
+				case PrebuiltCommand.Remove:
+					return RemovePrebuilts(prospect, options.Parameters);
+				case PrebuiltCommand.Clear:
+					return ClearPrebuilts(prospect);
+				default:
+					mLogger.LogError("Invalid prebuilt command");
+					return false;
+			}
+		}
+
+		private bool ListPrebuilts(ProspectSave prospect)
+		{
+			mLogger.Log(LogLevel.Information, "Listing prebuilt structures");
+			mLogger.Log(LogLevel.Information, $"{"Index",-5}  {"Structure Name",-32}{"Actors",-8}{"Location"}");
+
+			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			for (int i = 0, prebuiltIndex = 0; i < recorderProperties.Length; ++i)
+			{
+				StructProperty recorderProperty = (StructProperty)recorderProperties[i];
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+
+				if (!recorderName.Equals("/Script/Icarus.PrebuiltStructureRecorderComponent")) continue;
+
+				IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+
+				string structureName = "NAME_MISSING";
+				int actorCount = 0;
+				FVector? structureLocation = null;
+				foreach (FPropertyTag property in properties)
+				{
+					switch (property.Name.Value)
+					{
+						case "PrebuiltStructureName":
+							structureName = ((NameProperty)property.Property!).Value!.Value;
+							break;
+						case "RelevantActorRecords":
+							actorCount = ((ArrayProperty)property.Property!).Value!.Length;
+							break;
+						case "ActorTransform":
+							structureLocation = ((VectorStruct)((PropertiesStruct)property.Property!.Value!).Properties.FirstOrDefault(p => p.Name.Equals("Translation"))?.Property!.Value!).Value;
+							break;
+					}
+				}
+
+				mLogger.Log(LogLevel.Information, $"{prebuiltIndex,-5}  {structureName,-32}{actorCount,-8}{FormatVector(structureLocation)}");
+
+				++prebuiltIndex;
+			}
+
+			return true;
+		}
+
+		private bool RemovePrebuilts(ProspectSave prospect, int[] prebuiltsToRemove)
+		{
+			mLogger.Log(LogLevel.Information, $"Removing prebuilt structures at indeces: {string.Join(',', prebuiltsToRemove)}");
+			return InternalRemovePrebuilts(prospect, false, prebuiltsToRemove);
+		}
+
+		private bool ClearPrebuilts(ProspectSave prospect)
+		{
+			mLogger.Log(LogLevel.Information, "Removing all prebuilt structures");
+			return InternalRemovePrebuilts(prospect, true, new int[0]);
+		}
+
+		private bool InternalRemovePrebuilts(ProspectSave prospect, bool clear, int[] prebuiltsToRemove)
+		{
+			List<PropertiesStruct> prebuiltStructureRecorders = new();
+			Dictionary<int, List<int>> actorToIndexMap = new();
+
+			HashSet<int> recordersToRemove = new();
+			HashSet<int> prebuiltRemoveSet = new(prebuiltsToRemove);
+
+			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			for (int i = 0, prebuiltIndex = 0; i < recorderProperties.Length; ++i)
+			{
+				StructProperty recorderProperty = (StructProperty)recorderProperties[i];
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+
+				if (recorderName.Equals("/Script/Icarus.PrebuiltStructureRecorderComponent"))
+				{
+					if (clear || prebuiltRemoveSet.Contains(prebuiltIndex))
+					{
+						prebuiltStructureRecorders.Add(recorderValue);
+						recordersToRemove.Add(i);
+					}
+					++prebuiltIndex;
+				}
+				else if (recorderName.Equals("/Script/Icarus.BuildingGridRecorderComponent"))
+				{
+					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+
+					FPropertyTag? buildingGridRecordProperty = properties.FirstOrDefault(p => p.Name.Equals("BuildingGridRecord"));
+					if (buildingGridRecordProperty is not null)
+					{
+						FPropertyTag? buildingTypesProperty = ((PropertiesStruct?)((StructProperty?)buildingGridRecordProperty.Property)?.Value)?.Properties.FirstOrDefault(p => p.Name.Equals("BuildingTypes"));
+						if (buildingTypesProperty is not null)
+						{
+							FProperty[] buildingTypes = (FProperty[])((ArrayProperty)buildingTypesProperty.Property!).Value!;
+							foreach (StructProperty buildingTypeProperty in buildingTypes)
+							{
+								FPropertyTag? buildingInstancesProperty = ((PropertiesStruct)buildingTypeProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("BuildingInstances"));
+								if (buildingInstancesProperty is not null)
+								{
+									FProperty[] buildingInstances = (FProperty[])((ArrayProperty)buildingInstancesProperty.Property!).Value!;
+									foreach (StructProperty buildingInstanceProperty in buildingInstances)
+									{
+										IntProperty? uidProperty = (IntProperty?)((PropertiesStruct)buildingInstanceProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("IcarusUID"))?.Property;
+										if (uidProperty is not null)
+										{
+											List<int>? value;
+											if (!actorToIndexMap.TryGetValue(uidProperty.Value, out value))
+											{
+												value = new();
+												actorToIndexMap.Add(uidProperty.Value, value);
+											}
+											value.Add(i);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				else
+				{
+					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+					FPropertyTag? actorGuidProperty = properties.FirstOrDefault(p => p.Name.Equals("IcarusActorGUID"));
+					if (actorGuidProperty is not null && actorGuidProperty.Property is IntProperty asIntProperty && asIntProperty.Value != 0)
+					{
+						List<int>? value;
+						if (!actorToIndexMap.TryGetValue(asIntProperty.Value, out value))
+						{
+							value = new();
+							actorToIndexMap.Add(asIntProperty.Value, value);
+						}
+						value.Add(i);
+					}
+				}
+			}
+
+			HashSet<int> actorsToRemove = new();
+
+			foreach (PropertiesStruct prebuiltStructureRecorder in prebuiltStructureRecorders)
+			{
+				IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(prebuiltStructureRecorder.Properties[1]);
+
+				foreach (FPropertyTag property in properties)
+				{
+					if (!property.Name.Equals("RelevantActorRecords")) continue;
+
+					FProperty[] relevantActors = (FProperty[])((ArrayProperty)property.Property!).Value!;
+					foreach(FProperty relevantActorProperty in relevantActors)
+					{
+						IntProperty? uidProperty = (IntProperty?)((PropertiesStruct)relevantActorProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("RelevantActorIcarusUID"))?.Property;
+						if (uidProperty is not null)
+						{
+							actorsToRemove.Add(uidProperty.Value);
+						}
+					}
+
+					break;
+				}
+
+				break;
+			}
+
+			foreach (int actor in actorsToRemove)
+			{
+				List<int>? recorders;
+				if (actorToIndexMap.TryGetValue(actor, out recorders))
+				{
+					foreach(int recorder in recorders)
+					{
+						recordersToRemove.Add(recorder);
+					}
+				}
+				else
+				{
+					mLogger.Log(LogLevel.Information, $"Could not locate actor to remove: {actor}");
+				}
+			}
+
+			List<FProperty> outRecorders = new();
+			for (int i = 0; i < recorderProperties.Length; ++i)
+			{
+				if (recordersToRemove.Contains(i)) continue;
+
+				outRecorders.Add(recorderProperties[i]);
+			}
+
+			prospect.ProspectData[0].Property!.Value = outRecorders.ToArray();
+
+			return true;
+		}
+
 		private bool ListPlayers(ProspectSave prospect)
 		{
 			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
 
-			mLogger.Log(LogLevel.Information, $"Listing {characters.Characters.Count} characters...");
+			mLogger.Log(LogLevel.Information, $"Listing {characters.Characters.Count} characters");
 
 			mLogger.LogEmptyLine(LogLevel.Information);
 			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
@@ -339,13 +707,15 @@ namespace EditIcarusProspect
 
 		private bool CleanupUnassociatedRecorders(ProspectSave prospect)
 		{
+			mLogger.Log(LogLevel.Information, "Performing record cleanup");
+
 			CharactersData characters = CharacterReader.ReadCharacters(prospect, mLogger, true);
 
 			HashSet<int> recordersToRemove = new();
 
 			if (characters.UnownedPlayerStates is not null && characters.UnownedPlayerStates.Count > 0)
 			{
-				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedPlayerStates.Count} unassociated player states...");
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedPlayerStates.Count} unassociated player states");
 				foreach (RecorderData recorder in characters.UnownedPlayerStates)
 				{
 					recordersToRemove.Add(recorder.Index);
@@ -354,7 +724,7 @@ namespace EditIcarusProspect
 
 			if (characters.UnownedRocketSpawns is not null && characters.UnownedRocketSpawns.Count > 0)
 			{
-				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedRocketSpawns.Count} unowned rocket spawns...");
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedRocketSpawns.Count} unowned rocket spawns");
 				foreach (RecorderData recorder in characters.UnownedRocketSpawns)
 				{
 					recordersToRemove.Add(recorder.Index);
@@ -562,5 +932,31 @@ namespace EditIcarusProspect
 			}
 			recorderProperties.Value = propsToKeep.ToArray();
 		}
+
+		private static string FormatTimestamp(int value)
+		{
+			int seconds = value % 60;
+			int minutes = value / 60 % 60;
+			int hours = value / 3600 % 24;
+			int days = value / 3600 / 24;
+
+			return $"{days}:{hours:00}:{minutes:00}:{seconds:00}";
+		}
+
+		private static string? FormatVector(FVector? value)
+		{
+			if (!value.HasValue) return null;
+
+			return $"{Math.Round(value.Value.X)}, {Math.Round(value.Value.Y)}, {Math.Round(value.Value.Z)}";
+		}
+
+		private enum EMissionState
+		{
+			InProgress,
+			Completed,
+			Abandoned,
+			Failed,
+			MAX,
+		};
 	}
 }

@@ -51,35 +51,60 @@ EditIcarusProspect -p friends %localappdata%\Icarus\Saved\PlayerData\[your steam
 The above command updates the prospect to allow friends to join. You can add any of the following commands to the command line depending what you want to change.
 ```
 -n, -name [value]         Set the prospect name to the supplied value.
-                          Note: This will also change the file name.
+						  Note: This will also change the file name.
 
 -p, -privacy [option]     Set the lobby privacy for the prospect to one of the following.
-                          friends    Steam friends can join.
-                          private    No one can join.
+						  friends    Steam friends can join.
+						  private    No one can join.
 
 -d, -difficulty [option]  Set the game difficulty for the prospect to one of [easy, medium, hard, extreme].
-                          Warning: Extreme difficulty is only implemented for outposts. Things will break if
-                          you use it elsewhere.
+						  Warning: Extreme difficulty is only implemented for outposts. Things will break if
+						  you use it elsewhere.
 
 -h, -hardcore [on/off]    Turn on or off the ability to self-respawn if you die in the prospect.
 
 -z, -dropzone [index]     Set the selected drop zone for the prospect.
-                          Warning: Ensure the chosen index is valid for the specific map.
+						  Warning: Ensure the chosen index is valid for the specific map.
+
+-m, -mission [params]     Commands to manipulate mission history - intended only for open world prospects.
+
+						  list           List recorded missions.
+
+						  remove [list]  Remove specific missions from the record. Pass in a comma-separated
+										 list of mission indeces to remove. No spaces.
+										 Example: remove 0,4,17
+
+						  clear          Remove all missions from the record.
+
+						  Warning: Removing a currently active mission may cause problems.
+
+-b, -prebuilt [params]    Commands to manipulate mission generated prebuilt structures.
+
+						  list           List prebuilt structures.
+
+						  remove [list]  Remove specific structures. Pass in a comma-separated list of
+										 structure indeces to remove. No spaces.
+										 Example: remove 1,3,4
+
+						  clear          Remove all prebuilt structures.
+
+						  Warning: Removing a prebuilt structure associated with a currently active mission
+								   may cause problems.
 
 -l, -list                 Prints information about all player characters stored in the prospect.
 
 -c, -cleanup              Removes any rockets or other player data that is not associated with a valid player.
-                          Run this if you see any warnings when running -list that you want to clean up.
+						  Run this if you see any warnings when running -list that you want to clean up.
 
 -r, -remove [players]     Removes listed player characters and their rockets. List a player's Steam ID to
-                          remove all of that player's characters. To remove only a specific character, list
-                          a Steam ID followed by a hyphen, followed by the character slot number. Separate
-                          list entries with commas. Do not include any spaces.
+						  remove all of that player's characters. To remove only a specific character, list
+						  a Steam ID followed by a hyphen, followed by the character slot number. Separate
+						  list entries with commas. Do not include any spaces.
 
-                          Example: -r 76561100000000000,76561150505050505-0,76561123232323232
+						  Example: -r 76561100000000000,76561150505050505-0,76561123232323232
 
-                          Warning: Players removed this way will not be able to reclaim their loadout unless
-                          it is insured.
+						  Warning: Players removed this way will not be able to reclaim their loadout unless
+						  it is insured.
 ```
 
 ## How to Build

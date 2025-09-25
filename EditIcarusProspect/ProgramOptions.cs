@@ -52,6 +52,16 @@ namespace EditIcarusProspect
 		public int? DropZone { get; }
 
 		/// <summary>
+		/// Mission history commands
+		/// </summary>
+		public MissionOptions? Mission { get; }
+
+		/// <summary>
+		/// Mission generated prebuilt structure commands
+		/// </summary>
+		public PrebuiltOptions? Prebuilt { get; }
+
+		/// <summary>
 		/// Instructs the program to list all players in the prospect
 		/// </summary>
 		public bool ListPlayers { get; }
@@ -68,7 +78,18 @@ namespace EditIcarusProspect
 
 		public const int MaxOptionStringLength = 24; // Length of "-d, -difficulty [option]"
 
-		public ProgramOptions(string prospectPath, string? prospectName, ELobbyPrivacy lobbyPrivacy, EMissionDifficulty difficulty, bool? hardcore, int? dropZone, bool listPlayers, bool runCleanup, IReadOnlyList<string>? playersToRemove)
+		public ProgramOptions(
+			string prospectPath,
+			string? prospectName,
+			ELobbyPrivacy lobbyPrivacy,
+			EMissionDifficulty difficulty,
+			bool? hardcore,
+			int? dropZone,
+			MissionOptions? mission,
+			PrebuiltOptions? prebuilt,
+			bool listPlayers,
+			bool runCleanup,
+			IReadOnlyList<string>? playersToRemove)
 		{
 			ProspectPath = prospectPath;
 			ProspectName = prospectName;
@@ -76,6 +97,8 @@ namespace EditIcarusProspect
 			Difficulty = difficulty;
 			Hardcore = hardcore;
 			DropZone = dropZone;
+			Mission = mission;
+			Prebuilt = prebuilt;
 			ListPlayers = listPlayers;
 			RunCleanup = runCleanup;
 			PlayersToRemove = playersToRemove;
@@ -98,6 +121,31 @@ namespace EditIcarusProspect
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}-z, -dropzone [index]     Set the selected drop zone for the prospect.");
 			logger.Log(logLevel, $"{indent}                          Warning: Ensure the chosen index is valid for the specific map.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}-m, -mission [params]     Commands to manipulate mission history - intended only for open world prospects.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          list           List recorded missions.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          remove [list]  Remove specific missions from the record. Pass in a comma-separated");
+			logger.Log(logLevel, $"{indent}                                         list of mission indeces to remove. No spaces.");
+			logger.Log(logLevel, $"{indent}                                         Example: remove 0,4,17");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          clear          Remove all missions from the record.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          Warning: Removing a currently active mission may cause problems.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}-b, -prebuilt [params]    Commands to manipulate mission generated prebuilt structures.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          list           List prebuilt structures.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          remove [list]  Remove specific structures. Pass in a comma-separated list of");
+			logger.Log(logLevel, $"{indent}                                         structure indeces to remove. No spaces.");
+			logger.Log(logLevel, $"{indent}                                         Example: remove 1,3,4");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          clear          Remove all prebuilt structures.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          Warning: Removing a prebuilt structure associated with a currently active mission");
+			logger.Log(logLevel, $"{indent}                                   may cause problems.");
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}-l, -list                 Prints information about all player characters stored in the prospect.");
 			logger.LogEmptyLine(logLevel);
@@ -125,6 +173,8 @@ namespace EditIcarusProspect
 			EMissionDifficulty difficulty = EMissionDifficulty.None;
 			bool? hardcore = null;
 			int? dropZone = null;
+			MissionOptions? mission = null;
+			PrebuiltOptions? prebuilt = null;
 			bool listPlayers = false;
 			bool runCleanup = false;
 			List<string>? playersToRemove = null;
@@ -322,6 +372,112 @@ namespace EditIcarusProspect
 								dropZone = value;
 							}
 							break;
+						case "m":
+						case "mission":
+							{
+								if (mission.HasValue)
+								{
+									logger.LogError("[mission] parameter found more than once");
+									return false;
+								}
+
+								++i;
+								if (i >= commandLine.Count)
+								{
+									logger.LogError("Missing [params] for parameter [mission]");
+									return false;
+								}
+
+								MissionCommand command;
+								if (!Enum.TryParse(commandLine[i], true, out command))
+								{
+									logger.LogError($"Invalid parameter '{commandLine[i]}' for [mission]");
+									return false;
+								}
+
+								MissionOptions missionOptions = new()
+								{
+									Command = command
+								};
+								
+								if (command == MissionCommand.Remove)
+								{
+									++i;
+									if (i >= commandLine.Count)
+									{
+										logger.LogError("Missing [params] for parameter [mission]");
+										return false;
+									}
+
+									string[] missionParams = commandLine[i].Split(',').Select(item => item.Trim()).ToArray();
+									missionOptions.Parameters = new int[missionParams.Length];
+									for (int p = 0; p < missionParams.Length; ++p)
+									{
+										if (!int.TryParse(missionParams[p], out int value))
+										{
+											logger.LogError($"Invalid value '{missionParams[p]}' for parameter [mission remove]. Values must be integers.");
+											return false;
+										}
+										missionOptions.Parameters[p] = value;
+									}
+								}
+
+								mission = missionOptions;
+							}
+							break;
+						case "b":
+						case "prebuilt":
+							{
+								if (prebuilt.HasValue)
+								{
+									logger.LogError("[prebuilt] parameter found more than once");
+									return false;
+								}
+
+								++i;
+								if (i >= commandLine.Count)
+								{
+									logger.LogError("Missing [params] for parameter [prebuilt]");
+									return false;
+								}
+
+								PrebuiltCommand command;
+								if (!Enum.TryParse(commandLine[i], true, out command))
+								{
+									logger.LogError($"Invalid parameter '{commandLine[i]}' for [prebuilt]");
+									return false;
+								}
+
+								PrebuiltOptions prebuiltOptions = new()
+								{
+									Command = command
+								};
+
+								if (command == PrebuiltCommand.Remove)
+								{
+									++i;
+									if (i >= commandLine.Count)
+									{
+										logger.LogError("Missing [params] for parameter [prebuilt]");
+										return false;
+									}
+
+									string[] prebuiltParams = commandLine[i].Split(',').Select(item => item.Trim()).ToArray();
+									prebuiltOptions.Parameters = new int[prebuiltParams.Length];
+									for (int p = 0; p < prebuiltParams.Length; ++p)
+									{
+										if (!int.TryParse(prebuiltParams[p], out int value))
+										{
+											logger.LogError($"Invalid value '{prebuiltParams[p]}' for parameter [prebuilt remove]. Values must be integers.");
+											return false;
+										}
+										prebuiltOptions.Parameters[p] = value;
+									}
+								}
+
+								prebuilt = prebuiltOptions;
+							}
+							break;
 						case "l":
 						case "list":
 							{
@@ -381,7 +537,7 @@ namespace EditIcarusProspect
 				return false;
 			}
 
-			options = new ProgramOptions(prospectPath, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, listPlayers, runCleanup, playersToRemove);
+			options = new ProgramOptions(prospectPath, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, mission, prebuilt, listPlayers, runCleanup, playersToRemove);
 			return true;
 		}
 
@@ -392,10 +548,38 @@ namespace EditIcarusProspect
 				|| Difficulty != EMissionDifficulty.None
 				|| Hardcore.HasValue
 				|| DropZone.HasValue
+				|| Mission.HasValue
+				|| Prebuilt.HasValue
 				|| ListPlayers
 				|| RunCleanup
 				|| PlayersToRemove is not null;
 		}
+	}
+
+	internal struct MissionOptions
+	{
+		public MissionCommand Command;
+		public int[] Parameters;
+	}
+
+	internal struct PrebuiltOptions
+	{
+		public PrebuiltCommand Command;
+		public int[] Parameters;
+	}
+
+	internal enum MissionCommand
+	{
+		List,
+		Remove,
+		Clear
+	}
+
+	internal enum PrebuiltCommand
+	{
+		List,
+		Remove,
+		Clear
 	}
 
 	internal enum ELobbyPrivacy
