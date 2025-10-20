@@ -107,6 +107,8 @@ The above command updates the prospect to allow friends to join. You can add any
 						  it is insured.
 ```
 
+NOTE: Renaming a prospect causes the game to treat it as a separate prospect. This means any characters on the prospect with workshop loadouts will still be referencing the old prospect name and will not be able to send or receive workshop items in the renamed prospect. Players can edit their Loadouts.json to point to the new prospect to resolve this, or they can exit (fly out of) the prospect before the rename and rejoin after.
+
 ## How to Build
 
 If you want to build, from source, follow these steps.
