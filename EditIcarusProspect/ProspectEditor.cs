@@ -14,6 +14,7 @@
 
 using IcarusSaveLib;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using UeSaveGame;
 using UeSaveGame.DataTypes;
 using UeSaveGame.PropertyTypes;
@@ -562,8 +563,6 @@ namespace EditIcarusProspect
 
 					break;
 				}
-
-				break;
 			}
 
 			foreach (int actor in actorsToRemove)
@@ -571,14 +570,33 @@ namespace EditIcarusProspect
 				List<int>? recorders;
 				if (actorToIndexMap.TryGetValue(actor, out recorders))
 				{
-					foreach(int recorder in recorders)
+					if (recorders.Count > 1)
 					{
-						recordersToRemove.Add(recorder);
+						mLogger.Log(LogLevel.Debug, $"Found actor {actor} in {recorders.Count} recorders. Skipping");
+					}
+					else
+					{
+						foreach (int recorder in recorders)
+						{
+							recordersToRemove.Add(recorder);
+						}
 					}
 				}
 				else
 				{
 					mLogger.Log(LogLevel.Information, $"Could not locate actor to remove: {actor}");
+				}
+			}
+
+			if (mLogger.LogLevel <= LogLevel.Debug)
+			{
+				mLogger.Log(LogLevel.Debug, "Removing recorders:");
+				foreach (int index in recordersToRemove.OrderBy(i => i))
+				{
+					StructProperty recorderProperty = (StructProperty)recorderProperties[index];
+					PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+					string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+					mLogger.Log(LogLevel.Debug, $"{index.ToString().PadLeft(7)} {recorderName}");
 				}
 			}
 
