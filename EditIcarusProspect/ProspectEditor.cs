@@ -472,6 +472,21 @@ namespace EditIcarusProspect
 			HashSet<int> recordersToRemove = new();
 			HashSet<int> prebuiltRemoveSet = new(prebuiltsToRemove);
 
+			void checkActor(int index, IList<FPropertyTag> properties)
+			{
+				FPropertyTag? actorGuidProperty = properties.FirstOrDefault(p => p.Name.Equals("IcarusActorGUID"));
+				if (actorGuidProperty is not null && actorGuidProperty.Property is IntProperty asIntProperty && asIntProperty.Value != 0)
+				{
+					List<int>? value;
+					if (!actorToIndexMap.TryGetValue(asIntProperty.Value, out value))
+					{
+						value = new();
+						actorToIndexMap.Add(asIntProperty.Value, value);
+					}
+					value.Add(index);
+				}
+			}
+
 			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
 			for (int i = 0, prebuiltIndex = 0; i < recorderProperties.Length; ++i)
 			{
@@ -491,6 +506,8 @@ namespace EditIcarusProspect
 				else if (recorderName.Equals("/Script/Icarus.BuildingGridRecorderComponent"))
 				{
 					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+
+					checkActor(i, properties);
 
 					FPropertyTag? buildingGridRecordProperty = properties.FirstOrDefault(p => p.Name.Equals("BuildingGridRecord"));
 					if (buildingGridRecordProperty is not null)
@@ -527,17 +544,7 @@ namespace EditIcarusProspect
 				else
 				{
 					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
-					FPropertyTag? actorGuidProperty = properties.FirstOrDefault(p => p.Name.Equals("IcarusActorGUID"));
-					if (actorGuidProperty is not null && actorGuidProperty.Property is IntProperty asIntProperty && asIntProperty.Value != 0)
-					{
-						List<int>? value;
-						if (!actorToIndexMap.TryGetValue(asIntProperty.Value, out value))
-						{
-							value = new();
-							actorToIndexMap.Add(asIntProperty.Value, value);
-						}
-						value.Add(i);
-					}
+					checkActor(i, properties);
 				}
 			}
 
