@@ -53,6 +53,14 @@ namespace EditIcarusProspect
 
 			bool changed = false;
 
+			if (options.PrintStats)
+			{
+				if (!PrintStats(prospect))
+				{
+					return false;
+				}
+			}
+
 			if (options.ProspectName is not null)
 			{
 				if (!UpdateProspectName(prospect, options.ProspectName))
@@ -143,6 +151,199 @@ namespace EditIcarusProspect
 			}
 
 			return changed;
+		}
+
+		private bool PrintStats(ProspectSave prospect)
+		{
+			mLogger.Log(LogLevel.Information, "Reading prospect stats...");
+
+			Dictionary<string, int> recorderCounts = new(StringComparer.OrdinalIgnoreCase);
+			int largestRecorderCount = 1;
+
+			// Game mode data
+			int gameStateSeed = 0;
+			float timeOfDay = 0.0f;
+			float prospectGameTime = 0.0f;
+			int secondsPerDay = 4060;
+			int dynamicQuestSeed = 0;
+			int nextMeteorTime = 0;
+
+			Dictionary<string, int> deployableCounts = new(StringComparer.OrdinalIgnoreCase);
+			int largestDeployableCount = 1;
+
+			Dictionary<int, int> buildingGridCounts = new();
+			int largestBuildingGridCount = 1;
+
+			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			for (int i = 0; i < recorderProperties.Length; ++i)
+			{
+				StructProperty recorderProperty = (StructProperty)recorderProperties[i];
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+
+				int count;
+				if (recorderCounts.TryGetValue(recorderName, out count))
+				{
+					recorderCounts[recorderName] = count + 1;
+					if (count + 1 > largestRecorderCount)
+					{
+						largestRecorderCount = count + 1;
+					}
+				}
+				else
+				{
+					recorderCounts.Add(recorderName, 1);
+				}
+
+				if (recorderName.Equals("/Script/Icarus.GameModeStateRecorderComponent"))
+				{
+					IList<FPropertyTag> gameModeRecorderProperties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+					foreach (FPropertyTag property in gameModeRecorderProperties)
+					{
+						if (property.Name.Equals("GameModeRecord"))
+						{
+							PropertiesStruct recordProperties = (PropertiesStruct)property.Property!.Value!;
+							foreach (FPropertyTag recordProperty in recordProperties.Properties)
+							{
+								if (recordProperty.Name.Equals("GameStateSeed"))
+								{
+									gameStateSeed = ((IntProperty)recordProperty.Property!).Value;
+								}
+								else if (recordProperty.Name.Equals("TimeOfDay"))
+								{
+									timeOfDay = ((FloatProperty)recordProperty.Property!).Value;
+								}
+								else if (recordProperty.Name.Equals("ProspectGameTime"))
+								{
+									prospectGameTime = ((FloatProperty)recordProperty.Property!).Value;
+								}
+								else if (recordProperty.Name.Equals("SecondsPerGameDay"))
+								{
+									secondsPerDay = ((IntProperty)recordProperty.Property!).Value;
+								}
+							}
+						}
+						else if (property.Name.Equals("DynamicQuestSeed"))
+						{
+							dynamicQuestSeed = ((IntProperty)property.Property!).Value;
+						}
+						else if (property.Name.Equals("NextMeteorShowerTime"))
+						{
+							nextMeteorTime = ((IntProperty)property.Property!).Value;
+						}
+					}
+				}
+				else if (recorderName.Equals("/Script/Icarus.DeployableRecorderComponent"))
+				{
+					IList<FPropertyTag> deployableRecorderProperties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+					FPropertyTag? itemDataProperty = deployableRecorderProperties.FirstOrDefault(p => p.Name.Equals("StaticItemDataRowName"));
+					if (itemDataProperty is not null)
+					{
+						string itemName = ((NameProperty)itemDataProperty.Property!).Value!.Value;
+
+						if (deployableCounts.TryGetValue(itemName, out count))
+						{
+							deployableCounts[itemName] = count + 1;
+							if (count + 1 > largestDeployableCount)
+							{
+								largestDeployableCount = count + 1;
+							}
+						}
+						else
+						{
+							deployableCounts.Add(itemName, 1);
+						}
+					}
+				}
+				else if (recorderName.Equals("/Script/Icarus.BuildingGridRecorderComponent"))
+				{
+					IList<FPropertyTag> gridRecorderProperties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+
+					int actorGuid = ((IntProperty?)gridRecorderProperties.FirstOrDefault(p => p.Name.Equals("IcarusActorGUID"))?.Property)?.Value ?? 0;
+					FPropertyTag? gridRecordProperty = gridRecorderProperties.FirstOrDefault(p => p.Name.Equals("BuildingGridRecord"));
+					ArrayProperty? buildTypesProperty = ((PropertiesStruct)gridRecordProperty?.Property!.Value!).Properties.FirstOrDefault(p => p.Name.Equals("BuildingTypes"))?.Property as ArrayProperty;
+					if (buildTypesProperty is not null)
+					{
+						int buildingPieceCount = 0;
+						foreach (StructProperty buildTypeEntry in buildTypesProperty.Value!)
+						{
+							ArrayProperty? instancesProperty = ((PropertiesStruct)buildTypeEntry.Value!).Properties.FirstOrDefault(p => p.Name.Equals("BuildingInstances"))?.Property as ArrayProperty;
+							if (instancesProperty is not null)
+							{
+								buildingPieceCount += instancesProperty.Value!.Length;
+							}
+						}
+
+						if (buildingGridCounts.TryGetValue(actorGuid, out count))
+						{
+							buildingPieceCount += count;
+							buildingGridCounts[actorGuid] = buildingPieceCount;
+						}
+						else
+						{
+							buildingGridCounts.Add(actorGuid, buildingPieceCount);
+						}
+						if (buildingPieceCount > largestBuildingGridCount)
+						{
+							largestBuildingGridCount = buildingPieceCount;
+						}
+					}
+				}
+			}
+
+			int timeOfDayConverted = (int)(timeOfDay / secondsPerDay * 24 * 3600);
+
+			mLogger.LogEmptyLine(LogLevel.Information);
+			mLogger.Log(LogLevel.Information, "==== Prospect information ====");
+			mLogger.Log(LogLevel.Information, $"Name: {prospect.ProspectInfo.ProspectID}");
+			mLogger.Log(LogLevel.Information, $"Type: {prospect.ProspectInfo.ProspectDTKey}");
+			mLogger.Log(LogLevel.Information, $"Difficulty: {prospect.ProspectInfo.Difficulty}");
+			mLogger.Log(LogLevel.Information, $"Hardcore: {prospect.ProspectInfo.NoRespawns}");
+			mLogger.Log(LogLevel.Information, $"Drop zone: {prospect.ProspectInfo.SelectedDropPoint}");
+			mLogger.Log(LogLevel.Information, $"Game state seed: {gameStateSeed}");
+			mLogger.Log(LogLevel.Information, $"Dynamic quest seed: {dynamicQuestSeed}");
+			mLogger.Log(LogLevel.Information, $"Prospect time: {FormatTimestamp((int)prospectGameTime)}");
+			mLogger.Log(LogLevel.Information, $"Next exotic respawn time: {FormatTimestamp((int)nextMeteorTime)}");
+			mLogger.Log(LogLevel.Information, $"Time of day: {FormatTimestamp(timeOfDayConverted, false)}");
+			mLogger.Log(LogLevel.Information, $"Players: {prospect.ProspectInfo.AssociatedMembers.Count}");
+
+			int recorderDigitCount = (int)Math.Log10(largestRecorderCount) + 1;
+			int deployableDigitCount = (int)Math.Log10(largestDeployableCount) + 1;
+			int buildingGridDigitCount = (int)Math.Log10(largestBuildingGridCount) + 1;
+
+			string indent = new string(' ', recorderDigitCount);
+
+			mLogger.LogEmptyLine(LogLevel.Information);
+			mLogger.Log(LogLevel.Information, "==== Recorder counts ====");
+			foreach (var pair in recorderCounts.OrderBy(kvp => kvp.Key))
+			{
+				string name = pair.Key;
+				if (name.StartsWith("/Script/Icarus."))
+				{
+					name = name.Substring(15);
+				}
+
+				mLogger.Log(LogLevel.Information, $"{pair.Value.ToString().PadLeft(recorderDigitCount)}  {name}");
+
+				if (pair.Key.Equals("/Script/Icarus.DeployableRecorderComponent"))
+				{
+					foreach (var pair2 in deployableCounts.OrderBy(kvp => kvp.Key))
+					{
+						mLogger.Log(LogLevel.Information, $"{indent}  {pair2.Value.ToString().PadLeft(deployableDigitCount)}  {pair2.Key}");
+					}
+				}
+				else if (pair.Key.Equals("/Script/Icarus.BuildingGridRecorderComponent"))
+				{
+					foreach (var pair2 in buildingGridCounts.OrderBy(kvp => kvp.Key))
+					{
+						mLogger.Log(LogLevel.Information, $"{indent}  {pair2.Value.ToString().PadLeft(buildingGridDigitCount)}  {pair2.Key}");
+					}
+					mLogger.Log(LogLevel.Information, $"{indent}  Total pieces: {buildingGridCounts.Sum(kvp => kvp.Value)}");
+				}
+			}
+
+			mLogger.LogEmptyLine(LogLevel.Information);
+			return true;
 		}
 
 		private bool UpdateProspectName(ProspectSave prospect, string name)
@@ -958,14 +1159,22 @@ namespace EditIcarusProspect
 			recorderProperties.Value = propsToKeep.ToArray();
 		}
 
-		private static string FormatTimestamp(int value)
+		private static string FormatTimestamp(int value, bool includeDays = true)
 		{
 			int seconds = value % 60;
 			int minutes = value / 60 % 60;
-			int hours = value / 3600 % 24;
-			int days = value / 3600 / 24;
+			int hours;
 
-			return $"{days}:{hours:00}:{minutes:00}:{seconds:00}";
+			if (includeDays)
+			{
+				hours = value / 3600 % 24;
+				int days = value / 3600 / 24;
+
+				return $"{days}:{hours:00}:{minutes:00}:{seconds:00}";
+			}
+
+			hours = value / 3600;
+			return $"{hours:00}:{minutes:00}:{seconds:00}";
 		}
 
 		private static string? FormatVector(FVector? value)

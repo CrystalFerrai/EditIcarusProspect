@@ -50,6 +50,8 @@ EditIcarusProspect -p friends %localappdata%\Icarus\Saved\PlayerData\[your steam
 
 The above command updates the prospect to allow friends to join. You can add any of the following commands to the command line depending what you want to change.
 ```
+-s, -stats                Print statistics about the contents of the prospect save.
+
 -n, -name [value]         Set the prospect name to the supplied value.
 						  Note: This will also change the file name.
 

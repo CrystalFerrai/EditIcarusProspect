@@ -21,10 +21,16 @@ namespace EditIcarusProspect
 	/// </summary>
 	internal class ProgramOptions
 	{
+
 		/// <summary>
 		/// The path to the prospect to read or modify
 		/// </summary>
 		public string ProspectPath { get; }
+
+		/// <summary>
+		/// Instructs the program to print prospect stats
+		/// </summary>
+		public bool PrintStats { get; }
 
 		/// <summary>
 		/// A new name for the prospect
@@ -80,6 +86,7 @@ namespace EditIcarusProspect
 
 		public ProgramOptions(
 			string prospectPath,
+			bool printStats,
 			string? prospectName,
 			ELobbyPrivacy lobbyPrivacy,
 			EMissionDifficulty difficulty,
@@ -92,6 +99,7 @@ namespace EditIcarusProspect
 			IReadOnlyList<string>? playersToRemove)
 		{
 			ProspectPath = prospectPath;
+			PrintStats = printStats;
 			ProspectName = prospectName;
 			LobbyPrivacy = lobbyPrivacy;
 			Difficulty = difficulty;
@@ -106,6 +114,8 @@ namespace EditIcarusProspect
 
 		public static void PrintCommandLineOptions(Logger logger, LogLevel logLevel = LogLevel.Information, string indent = "")
 		{
+			logger.Log(logLevel, $"{indent}-s, -stats                Print statistics about the contents of the prospect save.");
+			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}-n, -name [value]         Set the prospect name to the supplied value.");
 			logger.Log(logLevel, $"{indent}                          Note: This will also change the file name.");
 			logger.LogEmptyLine(logLevel);
@@ -168,6 +178,7 @@ namespace EditIcarusProspect
 			options = null;
 
 			string? prospectPath = null;
+			bool printStats = false;
 			string? prospectName = null;
 			ELobbyPrivacy lobbyPrivacy = ELobbyPrivacy.Unknown;
 			EMissionDifficulty difficulty = EMissionDifficulty.None;
@@ -189,6 +200,10 @@ namespace EditIcarusProspect
 
 					switch (input)
 					{
+						case "s":
+						case "stats":
+							printStats = true;
+							break;
 						case "n":
 						case "name":
 							{
@@ -537,13 +552,14 @@ namespace EditIcarusProspect
 				return false;
 			}
 
-			options = new ProgramOptions(prospectPath, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, mission, prebuilt, listPlayers, runCleanup, playersToRemove);
+			options = new ProgramOptions(prospectPath, printStats, prospectName, lobbyPrivacy, difficulty, hardcore, dropZone, mission, prebuilt, listPlayers, runCleanup, playersToRemove);
 			return true;
 		}
 
 		public bool Any()
 		{
-			return ProspectName is not null
+			return PrintStats
+				|| ProspectName is not null
 				|| LobbyPrivacy != ELobbyPrivacy.Unknown
 				|| Difficulty != EMissionDifficulty.None
 				|| Hardcore.HasValue
