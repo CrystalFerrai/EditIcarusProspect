@@ -148,6 +148,8 @@ namespace EditIcarusProspect
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}                          list           List prebuilt structures.");
 			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}                          details        List prebuilt structures including details about their contents.");
+			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}                          remove [list]  Remove specific structures. Pass in a comma-separated list of");
 			logger.Log(logLevel, $"{indent}                                         structure indeces to remove. No spaces.");
 			logger.Log(logLevel, $"{indent}                                         Example: remove 1,3,4");
@@ -594,6 +596,7 @@ namespace EditIcarusProspect
 	internal enum PrebuiltCommand
 	{
 		List,
+		Details,
 		Remove,
 		Clear
 	}

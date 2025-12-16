@@ -121,7 +121,8 @@ namespace EditIcarusProspect
 				{
 					return false;
 				}
-				changed |= options.Prebuilt.Value.Command != PrebuiltCommand.List;
+				changed |= options.Prebuilt.Value.Command != PrebuiltCommand.List
+					&& options.Prebuilt.Value.Command != PrebuiltCommand.Details;
 			}
 
 			if (options.ListPlayers)
@@ -600,6 +601,8 @@ namespace EditIcarusProspect
 			{
 				case PrebuiltCommand.List:
 					return ListPrebuilts(prospect);
+				case PrebuiltCommand.Details:
+					return ListPrebuiltsWithDetails(prospect);
 				case PrebuiltCommand.Remove:
 					return RemovePrebuilts(prospect, options.Parameters);
 				case PrebuiltCommand.Clear:
@@ -649,6 +652,152 @@ namespace EditIcarusProspect
 
 				++prebuiltIndex;
 			}
+
+			return true;
+		}
+
+		private bool ListPrebuiltsWithDetails(ProspectSave prospect)
+		{
+			mLogger.Log(LogLevel.Information, "Listing prebuilt structures with details");
+			mLogger.LogEmptyLine(LogLevel.Information);
+			mLogger.Log(LogLevel.Information, $"{"Index",-5}  {"Structure Name",-32}{"Actors",-8}{"Location"}");
+
+			List<PropertiesStruct> prebuiltStructureRecorders = new();
+			Dictionary<int, List<int>> actorToIndexMap = new();
+			Dictionary<int, string> recorderIndexToNameMap = new();
+
+			void checkActor(int index, IList<FPropertyTag> properties)
+			{
+				FPropertyTag? actorGuidProperty = properties.FirstOrDefault(p => p.Name.Equals("IcarusActorGUID"));
+				if (actorGuidProperty is not null && actorGuidProperty.Property is IntProperty asIntProperty && asIntProperty.Value != 0)
+				{
+					List<int>? value;
+					if (!actorToIndexMap.TryGetValue(asIntProperty.Value, out value))
+					{
+						value = new();
+						actorToIndexMap.Add(asIntProperty.Value, value);
+					}
+					value.Add(index);
+				}
+			}
+
+			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			for (int i = 0, prebuiltIndex = 0; i < recorderProperties.Length; ++i)
+			{
+				StructProperty recorderProperty = (StructProperty)recorderProperties[i];
+				PropertiesStruct recorderValue = (PropertiesStruct)recorderProperty.Value!;
+				string recorderName = ((FString)recorderValue.Properties[0].Property!.Value!).Value;
+
+				recorderIndexToNameMap.Add(i, recorderName);
+
+				if (recorderName.Equals("/Script/Icarus.PrebuiltStructureRecorderComponent"))
+				{
+					prebuiltStructureRecorders.Add(recorderValue);
+					++prebuiltIndex;
+				}
+				else if (recorderName.Equals("/Script/Icarus.BuildingGridRecorderComponent"))
+				{
+					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+					checkActor(i, properties);
+
+					IEnumerable<int> pieceUIDs = GetBuildingGridPieceUIDs(properties);
+					foreach (int uid in pieceUIDs)
+					{
+						List<int>? value;
+						if (!actorToIndexMap.TryGetValue(uid, out value))
+						{
+							value = new();
+							actorToIndexMap.Add(uid, value);
+						}
+						value.Add(i);
+					}
+				}
+				else
+				{
+					IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(recorderValue.Properties[1]);
+					checkActor(i, properties);
+				}
+			}
+
+			for (int prebuiltIndex = 0; prebuiltIndex < prebuiltStructureRecorders.Count; ++prebuiltIndex)
+			{
+				IList<FPropertyTag> properties = ProspectSerlializationUtil.DeserializeRecorderData(prebuiltStructureRecorders[prebuiltIndex].Properties[1]);
+
+				string structureName = "NAME_MISSING";
+				FProperty[]? relevantActors = null;
+				int actorCount = 0;
+				FVector? structureLocation = null;
+				foreach (FPropertyTag property in properties)
+				{
+					switch (property.Name.Value)
+					{
+						case "PrebuiltStructureName":
+							structureName = ((NameProperty)property.Property!).Value!.Value;
+							break;
+						case "RelevantActorRecords":
+							relevantActors = (FProperty[])((ArrayProperty)property.Property!).Value!;
+							actorCount = relevantActors.Length;
+							break;
+						case "ActorTransform":
+							structureLocation = ((VectorStruct)((PropertiesStruct)property.Property!.Value!).Properties.FirstOrDefault(p => p.Name.Equals("Translation"))?.Property!.Value!).Value;
+							break;
+					}
+				}
+
+				const string unknownRecorderName = "UNKNOWN";
+				Dictionary<string, int> recorderCountsByType = new();
+
+				if (relevantActors is not null)
+				{
+					foreach (FProperty relevantActorProperty in relevantActors)
+					{
+						IntProperty? uidProperty = (IntProperty?)((PropertiesStruct)relevantActorProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("RelevantActorIcarusUID"))?.Property;
+						if (uidProperty is not null)
+						{
+							if (actorToIndexMap.TryGetValue(uidProperty.Value, out List<int>? recorderIndices))
+							{
+								foreach (int recorderIndex in recorderIndices)
+								{
+									string recorderName = recorderIndexToNameMap[recorderIndex];
+									if (recorderCountsByType.TryGetValue(recorderName, out int existingCount))
+									{
+										recorderCountsByType[recorderName] = existingCount + 1;
+									}
+									else
+									{
+										recorderCountsByType.Add(recorderName, 1);
+									}
+								}
+							}
+							else
+							{
+								if (recorderCountsByType.TryGetValue(unknownRecorderName, out int existingCount))
+								{
+									recorderCountsByType[unknownRecorderName] = existingCount + 1;
+								}
+								else
+								{
+									recorderCountsByType.Add(unknownRecorderName, 1);
+								}
+							}
+						}
+					}
+				}
+
+				mLogger.LogEmptyLine(LogLevel.Information);
+				mLogger.Log(LogLevel.Information, $"{prebuiltIndex,-5}  {structureName,-32}{actorCount,-8}{FormatVector(structureLocation)}");
+				foreach (var pair in recorderCountsByType)
+				{
+					string displayName = pair.Key;
+					if (displayName.StartsWith("/Script/Icarus."))
+					{
+						displayName = displayName.Substring(15);
+					}
+					mLogger.Log(LogLevel.Information, $"       {pair.Value,5}  {displayName}");
+				}
+			}
+
+			mLogger.LogEmptyLine(LogLevel.Information);
 
 			return true;
 		}
@@ -710,36 +859,16 @@ namespace EditIcarusProspect
 
 					checkActor(i, properties);
 
-					FPropertyTag? buildingGridRecordProperty = properties.FirstOrDefault(p => p.Name.Equals("BuildingGridRecord"));
-					if (buildingGridRecordProperty is not null)
+					IEnumerable<int> pieceUIDs = GetBuildingGridPieceUIDs(properties);
+					foreach (int uid in pieceUIDs)
 					{
-						FPropertyTag? buildingTypesProperty = ((PropertiesStruct?)((StructProperty?)buildingGridRecordProperty.Property)?.Value)?.Properties.FirstOrDefault(p => p.Name.Equals("BuildingTypes"));
-						if (buildingTypesProperty is not null)
+						List<int>? value;
+						if (!actorToIndexMap.TryGetValue(uid, out value))
 						{
-							FProperty[] buildingTypes = (FProperty[])((ArrayProperty)buildingTypesProperty.Property!).Value!;
-							foreach (StructProperty buildingTypeProperty in buildingTypes)
-							{
-								FPropertyTag? buildingInstancesProperty = ((PropertiesStruct)buildingTypeProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("BuildingInstances"));
-								if (buildingInstancesProperty is not null)
-								{
-									FProperty[] buildingInstances = (FProperty[])((ArrayProperty)buildingInstancesProperty.Property!).Value!;
-									foreach (StructProperty buildingInstanceProperty in buildingInstances)
-									{
-										IntProperty? uidProperty = (IntProperty?)((PropertiesStruct)buildingInstanceProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("IcarusUID"))?.Property;
-										if (uidProperty is not null)
-										{
-											List<int>? value;
-											if (!actorToIndexMap.TryGetValue(uidProperty.Value, out value))
-											{
-												value = new();
-												actorToIndexMap.Add(uidProperty.Value, value);
-											}
-											value.Add(i);
-										}
-									}
-								}
-							}
+							value = new();
+							actorToIndexMap.Add(uid, value);
 						}
+						value.Add(i);
 					}
 				}
 				else
@@ -819,6 +948,39 @@ namespace EditIcarusProspect
 			prospect.ProspectData[0].Property!.Value = outRecorders.ToArray();
 
 			return true;
+		}
+
+		private static ISet<int> GetBuildingGridPieceUIDs(IEnumerable<FPropertyTag> recorderProperties)
+		{
+			HashSet<int> uids = new();
+
+			FPropertyTag? buildingGridRecordProperty = recorderProperties.FirstOrDefault(p => p.Name.Equals("BuildingGridRecord"));
+			if (buildingGridRecordProperty is not null)
+			{
+				FPropertyTag? buildingTypesProperty = ((PropertiesStruct?)((StructProperty?)buildingGridRecordProperty.Property)?.Value)?.Properties.FirstOrDefault(p => p.Name.Equals("BuildingTypes"));
+				if (buildingTypesProperty is not null)
+				{
+					FProperty[] buildingTypes = (FProperty[])((ArrayProperty)buildingTypesProperty.Property!).Value!;
+					foreach (StructProperty buildingTypeProperty in buildingTypes)
+					{
+						FPropertyTag? buildingInstancesProperty = ((PropertiesStruct)buildingTypeProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("BuildingInstances"));
+						if (buildingInstancesProperty is not null)
+						{
+							FProperty[] buildingInstances = (FProperty[])((ArrayProperty)buildingInstancesProperty.Property!).Value!;
+							foreach (StructProperty buildingInstanceProperty in buildingInstances)
+							{
+								IntProperty? uidProperty = (IntProperty?)((PropertiesStruct)buildingInstanceProperty.Value!).Properties.FirstOrDefault(p => p.Name.Equals("IcarusUID"))?.Property;
+								if (uidProperty is not null)
+								{
+									uids.Add(uidProperty.Value);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return uids;
 		}
 
 		private bool ListPlayers(ProspectSave prospect)
