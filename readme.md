@@ -84,6 +84,8 @@ The above command updates the prospect to allow friends to join. You can add any
 
 						  list           List prebuilt structures.
 
+						  details        List prebuilt structures including details about their contents.
+
 						  remove [list]  Remove specific structures. Pass in a comma-separated list of
 										 structure indeces to remove. No spaces.
 										 Example: remove 1,3,4
