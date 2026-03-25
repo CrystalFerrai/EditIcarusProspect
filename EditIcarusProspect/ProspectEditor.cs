@@ -45,7 +45,7 @@ namespace EditIcarusProspect
 			ArrayProperty? stateRecorderBlobs = prospect.ProspectData[0].Property as ArrayProperty;
 			if (stateRecorderBlobs?.Value == null)
 			{
-				mLogger.LogError("Error reading prospect. Failed to locate state recorder array at index 0.");
+				mLogger.Error("Error reading prospect. Failed to locate state recorder array at index 0.");
 				return false;
 			}
 
@@ -373,7 +373,7 @@ namespace EditIcarusProspect
 			EnumProperty? lobbyPrivacyProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("LobbyPrivacy"))?.Property as EnumProperty;
 			if (lobbyPrivacyProperty is null)
 			{
-				mLogger.LogError("Error locating lobby privacy property");
+				mLogger.Error("Error locating lobby privacy property");
 				return false;
 			}
 
@@ -460,7 +460,7 @@ namespace EditIcarusProspect
 				case MissionCommand.Clear:
 					return ClearMissionHistory(prospect);
 				default:
-					mLogger.LogError("Invalid mission history command");
+					mLogger.Error("Invalid mission history command");
 					return false;
 			}
 		}
@@ -469,7 +469,7 @@ namespace EditIcarusProspect
 		{
 			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
 			{
-				mLogger.LogError("Error: Unable to locate mission history");
+				mLogger.Error("Error: Unable to locate mission history");
 				return false;
 			}
 
@@ -520,7 +520,7 @@ namespace EditIcarusProspect
 		{
 			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
 			{
-				mLogger.LogError("Error: Unable to locate mission history");
+				mLogger.Error("Error: Unable to locate mission history");
 				return false;
 			}
 
@@ -547,7 +547,7 @@ namespace EditIcarusProspect
 		{
 			if (!TryGetMissionHistoryProperty(prospect, out ArrayProperty? missionHistory, out PropertiesStruct? recorder, out IList<FPropertyTag>? recorderProperties))
 			{
-				mLogger.LogError("Error: Unable to locate mission history");
+				mLogger.Error("Error: Unable to locate mission history");
 				return false;
 			}
 
@@ -608,7 +608,7 @@ namespace EditIcarusProspect
 				case PrebuiltCommand.Clear:
 					return ClearPrebuilts(prospect);
 				default:
-					mLogger.LogError("Invalid prebuilt command");
+					mLogger.Error("Invalid prebuilt command");
 					return false;
 			}
 		}
@@ -990,10 +990,10 @@ namespace EditIcarusProspect
 			mLogger.Log(LogLevel.Information, $"Listing {characters.Characters.Count} characters");
 
 			mLogger.LogEmptyLine(LogLevel.Information);
-			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           DropShipLocation");
+			mLogger.Log(LogLevel.Information, "PlayerID-CharacterSlot  CharacterName           Mounts  DropShipLocation");
 			foreach (CharacterData character in characters.Characters)
 			{
-				string output = $"{character.ID,-24}{character.Name,-24}";
+				string output = $"{character.ID,-24}{character.Name,-24}{(character.OwnedMountRecorders?.Count ?? 0),-8}";
 
 				if (character.RocketRecorder.HasValue)
 				{
@@ -1128,6 +1128,15 @@ namespace EditIcarusProspect
 				}
 			}
 
+			if (characters.UnownedGravestones is not null && characters.UnownedGravestones.Count > 0)
+			{
+				mLogger.Log(LogLevel.Information, $"Removing {characters.UnownedGravestones.Count} unowned player bodies...");
+				foreach (RecorderData recorder in characters.UnownedGravestones)
+				{
+					recordersToRemove.Add(recorder.Index);
+				}
+			}
+
 			if (recordersToRemove.Count == 0)
 			{
 				mLogger.Log(LogLevel.Information, "Found nothing to cleanup.");
@@ -1146,7 +1155,7 @@ namespace EditIcarusProspect
 			{
 				if (!CharacterID.TryParse(input, out CharacterID characterId))
 				{
-					mLogger.LogError($"Could not parse input as a character ID: {input}");
+					mLogger.Error($"Could not parse input as a character ID: {input}");
 					return false;
 				}
 				inputCharacters.Add(characterId);
@@ -1223,7 +1232,30 @@ namespace EditIcarusProspect
 				}
 			}
 
-			// Remove from recorders
+			// Unclaim mounts
+			foreach (CharacterData removeCharacter in charactersToRemove)
+			{
+				if (removeCharacter.OwnedMountRecorders is null) continue;
+
+				foreach (RecorderData mountRecorder in removeCharacter.OwnedMountRecorders)
+				{
+					foreach (FPropertyTag prop in mountRecorder.Data)
+					{
+						if (prop.Name.Value.Equals("OwnerCharacterID", StringComparison.OrdinalIgnoreCase))
+						{
+							CharacterReader.UpdateCharacterID(prop.Property!, CharacterID.Null);
+						}
+						else if (prop.Name.Value.Equals("OwnerName", StringComparison.OrdinalIgnoreCase))
+						{
+							prop.Property!.Value = null;
+						}
+					}
+
+					mountRecorder.Serialize(prospect);
+				}
+			}
+
+			// Remove from player history
 			HashSet<int> historyIndicesToRemove = charactersToRemove.Select(c => c.HistoryIndex).ToHashSet();
 			foreach (FPropertyTag prop in allCharacters.PlayerHistoryRecorder.Data)
 			{
@@ -1241,7 +1273,9 @@ namespace EditIcarusProspect
 					break;
 				}
 			}
+			allCharacters.PlayerHistoryRecorder.Serialize(prospect);
 
+			// Remove recorders
 			HashSet<int> recordersToRemove = new();
 			foreach (CharacterData character in charactersToRemove)
 			{
@@ -1258,6 +1292,10 @@ namespace EditIcarusProspect
 				{
 					recordersToRemove.Add(character.RocketRecorder.Value.Index);
 				}
+				if (character.GravestoneRecorder.HasValue)
+				{
+					recordersToRemove.Add(character.GravestoneRecorder.Value.Index);
+				}
 			}
 			RemoveRecorders(prospect, recordersToRemove);
 
@@ -1269,14 +1307,14 @@ namespace EditIcarusProspect
 			StructProperty? prospectInfoProperty = prospect.ProspectData.FirstOrDefault(p => p.Name.Equals("ProspectInfo"))?.Property as StructProperty;
 			if (prospectInfoProperty is null)
 			{
-				mLogger.LogError("Error locating prospect info property inside binary blob");
+				mLogger.Error("Error locating prospect info property inside binary blob");
 				return null;
 			}
 
 			PropertiesStruct? prospectInfoPropertyData = prospectInfoProperty.Value as PropertiesStruct;
 			if (prospectInfoPropertyData is null)
 			{
-				mLogger.LogError("Error reading prospect info property inside binary blob");
+				mLogger.Error("Error reading prospect info property inside binary blob");
 				return null;
 			}
 
@@ -1291,7 +1329,7 @@ namespace EditIcarusProspect
 			T? property = prospectInfo.Properties.FirstOrDefault(p => p.Name.Equals(propertyName))?.Property as T;
 			if (property is null)
 			{
-				mLogger.LogError($"Error locating property '{propertyName}' inside binary blob");
+				mLogger.Error($"Error locating property '{propertyName}' inside binary blob");
 			}
 			return property;
 		}

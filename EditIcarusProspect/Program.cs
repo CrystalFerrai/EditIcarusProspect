@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using IcarusSaveLib;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace EditIcarusProspect
@@ -21,14 +22,11 @@ namespace EditIcarusProspect
 	{
 		private static int Main(string[] args)
 		{
-			Logger logger = new ConsoleLogger();
-			try
+			Logger? logger;
+			if (!TryCreateLoggger(out logger))
 			{
-				Console.OutputEncoding = Encoding.UTF8;
-			}
-			catch (Exception ex)
-			{
-				logger.Log(LogLevel.Warning, $"Unable to set output to UTF8. Some characters may not print correctly. Error: [{ex.GetType().FullName}] {ex.Message}");
+				Console.Error.WriteLine("No logger could be created. Program will exit.");
+				return OnExit(1);
 			}
 
 			if (args.Length == 0)
@@ -52,7 +50,7 @@ namespace EditIcarusProspect
 
 			if (!File.Exists(options.ProspectPath))
 			{
-				logger.LogError($"File not found or not accessible: {options.ProspectPath}");
+				logger.Error($"File not found or not accessible: {options.ProspectPath}");
 				return OnExit(1);
 			}
 
@@ -63,7 +61,7 @@ namespace EditIcarusProspect
 			}
 			catch (Exception ex)
 			{
-				logger.LogError($"{ex.GetType().FullName}: {ex.Message}");
+				logger.Error($"{ex.GetType().FullName}: {ex.Message}");
 				success = false;
 			}
 
@@ -73,6 +71,36 @@ namespace EditIcarusProspect
 			}
 
 			return OnExit(success ? 0 : 1);
+		}
+
+		private static bool TryCreateLoggger([NotNullWhen(true)] out Logger? logger)
+		{
+			logger = null;
+
+			try
+			{
+				logger = ConsoleLogger.Create(Encoding.UTF8);
+				return true;
+			}
+			catch (Exception ex)
+			{
+				Console.Error.WriteLine($"Failed to create UTF8 logger. Error: [{ex.GetType().FullName}] {ex.Message}");
+			}
+
+			if (logger is null)
+			{
+				try
+				{
+					logger = new ConsoleLogger();
+					return true;
+				}
+				catch (Exception ex)
+				{
+					Console.Error.WriteLine($"Failed to create default logger. Error: [{ex.GetType().FullName}] {ex.Message}");
+				}
+			}
+
+			return false;
 		}
 
 		private static int OnExit(int code)
@@ -102,7 +130,7 @@ namespace EditIcarusProspect
 				path = Path.Combine(Path.GetDirectoryName(path)!, $"{options.ProspectName}.json");
 				if (File.Exists(path))
 				{
-					logger.LogError($"Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
+					logger.Error($"Cannot rename prospect. A prospect with the name {options.ProspectName} already exists.");
 					return false;
 				}
 			}
@@ -120,13 +148,13 @@ namespace EditIcarusProspect
 			}
 			catch (Exception ex)
 			{
-				logger.LogError($"Error reading prospect file. [{ex.GetType().FullName}] {ex.Message}");
+				logger.Error($"Error reading prospect file. [{ex.GetType().FullName}] {ex.Message}");
 				return false;
 			}
 
 			if (prospect == null)
 			{
-				logger.LogError("Error reading prospect file. Could not load Json.");
+				logger.Error("Error reading prospect file. Could not load Json.");
 				return false;
 			}
 

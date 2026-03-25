@@ -14,6 +14,7 @@
 
 using IcarusSaveLib;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using UeSaveGame;
 using UeSaveGame.PropertyTypes;
 using UeSaveGame.StructData;
@@ -35,11 +36,13 @@ namespace EditIcarusProspect
 
 			HashSet<string> recordersToRead = new(StringComparer.OrdinalIgnoreCase)
 			{
-				"/Script/Icarus.PlayerHistoryRecorderComponent",
 				"/Script/Icarus.DynamicRocketSpawnRecorderComponent",
-				"/Script/Icarus.RocketRecorderComponent",
+				"/Script/Icarus.GravestoneRecorderComponent",
+				"/Script/Icarus.IcarusMountCharacterRecorderComponent",
+				"/Script/Icarus.PlayerHistoryRecorderComponent",
 				"/Script/Icarus.PlayerRecorderComponent",
-				"/Script/Icarus.PlayerStateRecorderComponent"
+				"/Script/Icarus.PlayerStateRecorderComponent",
+				"/Script/Icarus.RocketRecorderComponent"
 			};
 
 			FProperty[] recorderProperties = (FProperty[])prospect.ProspectData[0].Property!.Value!;
@@ -49,8 +52,22 @@ namespace EditIcarusProspect
 			Dictionary<CharacterID, string> characterNameMap = new();
 			Dictionary<CharacterID, int> characterHistoryIndexMap = new();
 			Dictionary<CharacterID, RecorderData?> playerStateRecorderMap = new();
+			Dictionary<CharacterID, List<RecorderData>> playerMountRecorderMap = new();
 			Dictionary<int, RecorderData?> rocketSpawnRecorderMap = new();
 			Dictionary<int, RecorderData?> rocketRecorderMap = new();
+			Dictionary<int, RecorderData?> gravestoneRecorderMap = new();
+
+			void addActorToMap(RecorderData recorder, Dictionary<int, RecorderData?> map)
+			{
+				foreach (FPropertyTag prop in recorder.Data)
+				{
+					if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
+					{
+						int uid = (int)prop.Property!.Value!;
+						map.Add(uid, recorder);
+					}
+				}
+			}
 
 			for (int i = 0; i < recorderProperties.Length; ++i)
 			{
@@ -81,27 +98,37 @@ namespace EditIcarusProspect
 						}
 					}
 				}
-				else if (recorderName.Equals("/Script/Icarus.DynamicRocketSpawnRecorderComponent", StringComparison.OrdinalIgnoreCase))
+				else if (recorderName.Equals("/Script/Icarus.IcarusMountCharacterRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
 					foreach (FPropertyTag prop in recorder.Data)
 					{
-						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
+						if (prop.Name.Value.Equals("OwnerCharacterID", StringComparison.OrdinalIgnoreCase))
 						{
-							int uid = (int)prop.Property!.Value!;
-							rocketSpawnRecorderMap.Add(uid, recorder);
+							CharacterID? id = ReadCharacterID(prop.Property!);
+							if (id.HasValue)
+							{
+								List<RecorderData>? mountList;
+								if (!playerMountRecorderMap.TryGetValue(id.Value, out mountList))
+								{
+									mountList = new();
+									playerMountRecorderMap.Add(id.Value, mountList);
+								}
+								mountList.Add(recorder);
+							}
 						}
 					}
 				}
+				else if (recorderName.Equals("/Script/Icarus.DynamicRocketSpawnRecorderComponent", StringComparison.OrdinalIgnoreCase))
+				{
+					addActorToMap(recorder, rocketSpawnRecorderMap);
+				}
 				else if (recorderName.Equals("/Script/Icarus.RocketRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
-					foreach (FPropertyTag prop in recorder.Data)
-					{
-						if (prop.Name.Value.Equals("IcarusActorGUID", StringComparison.OrdinalIgnoreCase))
-						{
-							int uid = (int)prop.Property!.Value!;
-							rocketRecorderMap.Add(uid, recorder);
-						}
-					}
+					addActorToMap(recorder, rocketRecorderMap);
+				}
+				else if (recorderName.Equals("/Script/Icarus.GravestoneRecorderComponent", StringComparison.OrdinalIgnoreCase))
+				{
+					addActorToMap(recorder, gravestoneRecorderMap);
 				}
 				else if (recorderName.Equals("/Script/Icarus.PlayerHistoryRecorderComponent", StringComparison.OrdinalIgnoreCase))
 				{
@@ -155,6 +182,7 @@ namespace EditIcarusProspect
 				CharacterID? charId = null;
 				int rocketSpawnId = -1;
 				int rocketId = -1;
+				int gravestoneId = -1;
 				foreach (FPropertyTag prop in recorder.Data)
 				{
 					if (prop.Name.Value.Equals("PlayerCharacterID", StringComparison.OrdinalIgnoreCase))
@@ -168,6 +196,10 @@ namespace EditIcarusProspect
 					else if (prop.Name.Value.Equals("AssignedDropshipUID", StringComparison.OrdinalIgnoreCase))
 					{
 						rocketId = (int)prop.Property!.Value!;
+					}
+					else if (prop.Name.Value.Equals("AssignedGravestoneUID", StringComparison.OrdinalIgnoreCase))
+					{
+						gravestoneId = (int)prop.Property!.Value!;
 					}
 				}
 				if (!charId.HasValue)
@@ -195,22 +227,24 @@ namespace EditIcarusProspect
 					playerStateRecorder = null;
 				}
 
-				if (rocketSpawnId >= 0 && rocketSpawnRecorderMap.TryGetValue(rocketSpawnId, out RecorderData? rocketSpawnRecorder))
+				RecorderData? getRecorder(Dictionary<int, RecorderData?> map, int recorderId)
 				{
-					rocketSpawnRecorderMap.Remove(rocketSpawnId);
-				}
-				else
-				{
-					rocketSpawnRecorder = null;
+					if (recorderId >= 0 && map.TryGetValue(recorderId, out RecorderData? recorder))
+					{
+						map.Remove(recorderId);
+						return recorder;
+					}
+					return null;
 				}
 
-				if (rocketId >= 0 && rocketRecorderMap.TryGetValue(rocketId, out RecorderData? rocketRecorder))
+				RecorderData? rocketSpawnRecorder = getRecorder(rocketSpawnRecorderMap, rocketSpawnId);
+				RecorderData? rocketRecorder = getRecorder(rocketRecorderMap, rocketId);
+				RecorderData? gravestoneRecorder = getRecorder(gravestoneRecorderMap, gravestoneId);
+
+				List<RecorderData>? ownedMountRecorders;
+				if (!playerMountRecorderMap.TryGetValue(charId.Value, out ownedMountRecorders))
 				{
-					rocketRecorderMap.Remove(rocketId);
-				}
-				else
-				{
-					rocketRecorder = null;
+					ownedMountRecorders = null;
 				}
 
 				characters.Add(new(charId.Value)
@@ -222,7 +256,9 @@ namespace EditIcarusProspect
 					PlayerRecorder = recorder,
 					PlayerStateRecorder = playerStateRecorder,
 					RocketSpawnRecorder = rocketSpawnRecorder,
-					RocketRecorder = rocketRecorder
+					RocketRecorder = rocketRecorder,
+					GravestoneRecorder = gravestoneRecorder,
+					OwnedMountRecorders = ownedMountRecorders
 				});
 			}
 
@@ -243,6 +279,10 @@ namespace EditIcarusProspect
 			{
 				result.UnownedRockets = new List<RecorderData>(rocketRecorderMap.Values.Select(r => r!.Value));
 			}
+			if (gravestoneRecorderMap.Count > 0)
+			{
+				result.UnownedGravestones = new List<RecorderData>(gravestoneRecorderMap.Values.Select(r => r!.Value));
+			}
 
 			return result;
 		}
@@ -254,18 +294,19 @@ namespace EditIcarusProspect
 		/// <returns>The character id, or null if no character id could be read</returns>
 		public static CharacterID? ReadCharacterID(FProperty idProperty)
 		{
-			string? id = null;
-			int slot = -1;
 			if ((PropertiesStruct)idProperty.Value! is not PropertiesStruct charIdStruct)
 			{
 				return null;
 			}
+
+			string? id = null;
+			int slot = -1;
 			foreach (FPropertyTag prop in charIdStruct.Properties)
 			{
 				if (prop.Name.Value.Equals("UserID", StringComparison.OrdinalIgnoreCase) ||
 					prop.Name.Value.Equals("PlayerID", StringComparison.OrdinalIgnoreCase))
 				{
-					id = ((FString)prop.Property!.Value!).Value;
+					id = ((FString?)prop.Property!.Value)?.Value;
 				}
 				else if (prop.Name.Value.Equals("ChrSlot", StringComparison.OrdinalIgnoreCase))
 				{
@@ -275,6 +316,44 @@ namespace EditIcarusProspect
 
 			if (id is null) return null;
 			return new(id, slot);
+		}
+
+		/// <summary>
+		/// Writes a new value to a character id struct property
+		/// </summary>
+		/// <param name="idProperty">A struct property containing a character id</param>
+		/// <param name="characterId">The new value to write</param>
+		/// <returns>True if the property was updated or false if the property is not a valid character id struct</returns>
+		public static bool UpdateCharacterID(FProperty idProperty, CharacterID characterId)
+		{
+			if ((PropertiesStruct)idProperty.Value! is not PropertiesStruct charIdStruct)
+			{
+				return false;
+			}
+
+			FProperty? playerProperty = null;
+			FProperty? slotProperty = null;
+			foreach (FPropertyTag prop in charIdStruct.Properties)
+			{
+				if (prop.Name.Value.Equals("UserID", StringComparison.OrdinalIgnoreCase) ||
+					prop.Name.Value.Equals("PlayerID", StringComparison.OrdinalIgnoreCase))
+				{
+					playerProperty = prop.Property;
+				}
+				else if (prop.Name.Value.Equals("ChrSlot", StringComparison.OrdinalIgnoreCase))
+				{
+					slotProperty = prop.Property;
+				}
+			}
+
+			if (playerProperty is null || slotProperty is null)
+			{
+				return false;
+			}
+
+			playerProperty.Value = characterId.PlayerID is null ? null : new FString(characterId.PlayerID);
+			slotProperty.Value = characterId.Slot;
+			return true;
 		}
 	}
 
@@ -290,6 +369,7 @@ namespace EditIcarusProspect
 		public IReadOnlyList<RecorderData>? UnownedPlayerStates;
 		public IReadOnlyList<RecorderData>? UnownedRocketSpawns;
 		public IReadOnlyList<RecorderData>? UnownedRockets;
+		public IReadOnlyList<RecorderData>? UnownedGravestones;
 
 		public override readonly string ToString()
 		{
@@ -312,6 +392,8 @@ namespace EditIcarusProspect
 		public RecorderData? PlayerStateRecorder;
 		public RecorderData? RocketSpawnRecorder;
 		public RecorderData? RocketRecorder;
+		public RecorderData? GravestoneRecorder;
+		public List<RecorderData>? OwnedMountRecorders;
 
 		public CharacterData(CharacterID id)
 		{
@@ -349,8 +431,15 @@ namespace EditIcarusProspect
 	/// </summary>
 	internal readonly struct CharacterID : IEquatable<CharacterID>, IComparable<CharacterID>
 	{
+		public static CharacterID Null;
+
 		public readonly string? PlayerID;
 		public readonly int Slot;
+
+		static CharacterID()
+		{
+			Null = new();
+		}
 
 		public CharacterID()
 		{
@@ -451,6 +540,13 @@ namespace EditIcarusProspect
 		public string Name;
 		public int Index;
 		public IList<FPropertyTag> Data;
+
+		public void Serialize(ProspectSave prospect)
+		{
+			FProperty[] recorders = (FProperty[])prospect.ProspectData[0].Property!.Value!;
+			PropertiesStruct recorderValue = (PropertiesStruct)recorders[Index].Value!;
+			recorderValue.Properties[1] = ProspectSerlializationUtil.SerializeRecorderData(recorderValue.Properties[1], Data);
+		}
 
 		public override readonly string ToString()
 		{

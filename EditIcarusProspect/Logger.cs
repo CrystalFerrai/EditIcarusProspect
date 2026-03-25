@@ -1,4 +1,4 @@
-﻿// Copyright 2025 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace EditIcarusProspect
 {
@@ -61,15 +64,15 @@ namespace EditIcarusProspect
 
 			if (level == LogLevel.Warning)
 			{
-				mWriters[(int)level].WriteLine($"[WARNING] {message}");
+				WriteLine(level, $"[WARNING] {message}");
 			}
 			else if (level >= LogLevel.Error)
 			{
-				mWriters[(int)level].WriteLine($"[ERROR] {message}");
+				WriteLine(level, $"[ERROR] {message}");
 			}
 			else
 			{
-				mWriters[(int)level].WriteLine(message);
+				WriteLine(level, message);
 			}
 
 			OnPostLog(level, message);
@@ -90,11 +93,48 @@ namespace EditIcarusProspect
 		}
 
 		/// <summary>
+		/// Helper for logging a debug message
+		/// </summary>
+		public void Debug(string message)
+		{
+			Log(LogLevel.Debug, message);
+		}
+
+		/// <summary>
+		/// Helper for logging an information message
+		/// </summary>
+		public void Information(string message)
+		{
+			Log(LogLevel.Information, message);
+		}
+
+		/// <summary>
+		/// Helper for logging an important message
+		/// </summary>
+		public void Important(string message)
+		{
+			Log(LogLevel.Important, message);
+		}
+
+		/// <summary>
+		/// Helper for logging a warning
+		/// </summary>
+		public void Warning(string message)
+		{
+			Log(LogLevel.Warning, message);
+		}
+
+		/// <summary>
 		/// Helper for logging an error
 		/// </summary>
-		public void LogError(string message)
+		public void Error(string message)
 		{
 			Log(LogLevel.Error, message);
+		}
+
+		protected virtual void WriteLine(LogLevel level, string message)
+		{
+			mWriters[(int)level].WriteLine(message);
 		}
 
 		protected virtual void OnPreLog(LogLevel level, string message)
@@ -121,8 +161,15 @@ namespace EditIcarusProspect
 			SetOutput(LogLevel.Fatal, Console.Error);
 		}
 
+		public static ConsoleLogger Create(Encoding encoding)
+		{
+			Console.OutputEncoding = encoding;
+			return new ConsoleLogger();
+		}
+
 		protected override void OnPreLog(LogLevel level, string message)
 		{
+			Console.OutputEncoding = Encoding.UTF8;
 			switch (level)
 			{
 				case LogLevel.Verbose:

@@ -211,21 +211,21 @@ namespace EditIcarusProspect
 							{
 								if (prospectName is not null)
 								{
-									logger.LogError("[name] parameter found more than once");
+									logger.Error("[name] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [value] for parameter [name]");
+									logger.Error("Missing [value] for parameter [name]");
 									return false;
 								}
 
 								string subCommand = commandLine[i];
 								if (subCommand.StartsWith('-'))
 								{
-									logger.LogError("Missing [value] for parameter [name]");
+									logger.Error("Missing [value] for parameter [name]");
 									return false;
 								}
 
@@ -237,21 +237,21 @@ namespace EditIcarusProspect
 							{
 								if (lobbyPrivacy != ELobbyPrivacy.Unknown)
 								{
-									logger.LogError("[privacy] parameter found more than once");
+									logger.Error("[privacy] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [option] for parameter [privacy]");
+									logger.Error("Missing [option] for parameter [privacy]");
 									return false;
 								}
 
 								string subCommand = commandLine[i].ToLowerInvariant();
 								if (subCommand.StartsWith('-'))
 								{
-									logger.LogError("Missing [option] for parameter [privacy]");
+									logger.Error("Missing [option] for parameter [privacy]");
 									return false;
 								}
 
@@ -266,7 +266,7 @@ namespace EditIcarusProspect
 										lobbyPrivacy = ELobbyPrivacy.Private;
 										break;
 									default:
-										logger.LogError($"Unrecognized [option] '{subCommand}' for parameter [privacy]");
+										logger.Error($"Unrecognized [option] '{subCommand}' for parameter [privacy]");
 										return false;
 								}
 							}
@@ -276,21 +276,21 @@ namespace EditIcarusProspect
 							{
 								if (difficulty != EMissionDifficulty.None)
 								{
-									logger.LogError("[difficulty] parameter found more than once");
+									logger.Error("[difficulty] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [option] for parameter [difficulty]");
+									logger.Error("Missing [option] for parameter [difficulty]");
 									return false;
 								}
 
 								string subCommand = commandLine[i].ToLowerInvariant();
 								if (subCommand.StartsWith('-'))
 								{
-									logger.LogError("Missing [option] for parameter [difficulty]");
+									logger.Error("Missing [option] for parameter [difficulty]");
 									return false;
 								}
 
@@ -315,7 +315,7 @@ namespace EditIcarusProspect
 										difficulty = EMissionDifficulty.Extreme;
 										break;
 									default:
-										logger.LogError($"Unrecognized [option] '{subCommand}' for parameter [difficulty]");
+										logger.Error($"Unrecognized [option] '{subCommand}' for parameter [difficulty]");
 										return false;
 								}
 							}
@@ -325,21 +325,21 @@ namespace EditIcarusProspect
 							{
 								if (hardcore.HasValue)
 								{
-									logger.LogError("[hardcore] parameter found more than once");
+									logger.Error("[hardcore] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [on/off] for parameter [hardcore]");
+									logger.Error("Missing [on/off] for parameter [hardcore]");
 									return false;
 								}
 
 								string subCommand = commandLine[i].ToLowerInvariant();
 								if (subCommand.StartsWith('-'))
 								{
-									logger.LogError("Missing [on/off] for parameter [hardcore]");
+									logger.Error("Missing [on/off] for parameter [hardcore]");
 									return false;
 								}
 
@@ -356,7 +356,7 @@ namespace EditIcarusProspect
 										hardcore = false;
 										break;
 									default:
-										logger.LogError($"Unrecognized [on/off] '{subCommand}' for parameter [hardcore]");
+										logger.Error($"Unrecognized [on/off] '{subCommand}' for parameter [hardcore]");
 										return false;
 								}
 							}
@@ -366,14 +366,14 @@ namespace EditIcarusProspect
 							{
 								if (dropZone.HasValue)
 								{
-									logger.LogError("[dropzone] parameter found more than once");
+									logger.Error("[dropzone] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [index] for parameter [dropzone]");
+									logger.Error("Missing [index] for parameter [dropzone]");
 									return false;
 								}
 
@@ -382,7 +382,7 @@ namespace EditIcarusProspect
 								int value;
 								if (!int.TryParse(subCommand, out value))
 								{
-									logger.LogError($"Expected integer [index] for parameter [dropZone]. Found '{subCommand}'.");
+									logger.Error($"Expected integer [index] for parameter [dropZone]. Found '{subCommand}'.");
 									return false;
 								}
 
@@ -394,21 +394,21 @@ namespace EditIcarusProspect
 							{
 								if (mission.HasValue)
 								{
-									logger.LogError("[mission] parameter found more than once");
+									logger.Error("[mission] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [params] for parameter [mission]");
+									logger.Error("Missing [params] for parameter [mission]");
 									return false;
 								}
 
 								MissionCommand command;
 								if (!Enum.TryParse(commandLine[i], true, out command))
 								{
-									logger.LogError($"Invalid parameter '{commandLine[i]}' for [mission]");
+									logger.Error($"Invalid parameter '{commandLine[i]}' for [mission]");
 									return false;
 								}
 
@@ -422,7 +422,7 @@ namespace EditIcarusProspect
 									++i;
 									if (i >= commandLine.Count)
 									{
-										logger.LogError("Missing [params] for parameter [mission]");
+										logger.Error("Missing [params] for parameter [mission]");
 										return false;
 									}
 
@@ -432,7 +432,7 @@ namespace EditIcarusProspect
 									{
 										if (!int.TryParse(missionParams[p], out int value))
 										{
-											logger.LogError($"Invalid value '{missionParams[p]}' for parameter [mission remove]. Values must be integers.");
+											logger.Error($"Invalid value '{missionParams[p]}' for parameter [mission remove]. Values must be integers.");
 											return false;
 										}
 										missionOptions.Parameters[p] = value;
@@ -447,21 +447,21 @@ namespace EditIcarusProspect
 							{
 								if (prebuilt.HasValue)
 								{
-									logger.LogError("[prebuilt] parameter found more than once");
+									logger.Error("[prebuilt] parameter found more than once");
 									return false;
 								}
 
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [params] for parameter [prebuilt]");
+									logger.Error("Missing [params] for parameter [prebuilt]");
 									return false;
 								}
 
 								PrebuiltCommand command;
 								if (!Enum.TryParse(commandLine[i], true, out command))
 								{
-									logger.LogError($"Invalid parameter '{commandLine[i]}' for [prebuilt]");
+									logger.Error($"Invalid parameter '{commandLine[i]}' for [prebuilt]");
 									return false;
 								}
 
@@ -475,7 +475,7 @@ namespace EditIcarusProspect
 									++i;
 									if (i >= commandLine.Count)
 									{
-										logger.LogError("Missing [params] for parameter [prebuilt]");
+										logger.Error("Missing [params] for parameter [prebuilt]");
 										return false;
 									}
 
@@ -485,7 +485,7 @@ namespace EditIcarusProspect
 									{
 										if (!int.TryParse(prebuiltParams[p], out int value))
 										{
-											logger.LogError($"Invalid value '{prebuiltParams[p]}' for parameter [prebuilt remove]. Values must be integers.");
+											logger.Error($"Invalid value '{prebuiltParams[p]}' for parameter [prebuilt remove]. Values must be integers.");
 											return false;
 										}
 										prebuiltOptions.Parameters[p] = value;
@@ -513,7 +513,7 @@ namespace EditIcarusProspect
 								++i;
 								if (i >= commandLine.Count)
 								{
-									logger.LogError("Missing [players] for parameter [remove]");
+									logger.Error("Missing [players] for parameter [remove]");
 									return false;
 								}
 
@@ -528,7 +528,7 @@ namespace EditIcarusProspect
 							}
 							break;
 						default:
-							logger.LogError($"Unrecognized argument '{commandLine[i]}'");
+							logger.Error($"Unrecognized argument '{commandLine[i]}'");
 							return false;
 					}
 				}
@@ -541,7 +541,7 @@ namespace EditIcarusProspect
 							prospectPath = Path.GetFullPath(commandLine[i]);
 							break;
 						default:
-							logger.LogError("Too many positional arguments.");
+							logger.Error("Too many positional arguments.");
 							return false;
 					}
 					++positionalArgIndex;
@@ -550,7 +550,7 @@ namespace EditIcarusProspect
 
 			if (prospectPath is null)
 			{
-				logger.LogError("Missing prospect path argument");
+				logger.Error("Missing prospect path argument");
 				return false;
 			}
 
