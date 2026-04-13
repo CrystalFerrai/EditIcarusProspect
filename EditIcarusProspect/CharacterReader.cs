@@ -160,14 +160,14 @@ namespace EditIcarusProspect
 									}
 									else if (historyProp.Name.Value.Equals("CachedCharacterName", StringComparison.OrdinalIgnoreCase))
 									{
-										name = ((FString)historyProp.Property!.Value!).Value;
+										name = ((FString?)historyProp.Property?.Value)?.Value;
 									}
 								}
 
-								if (id is not null && slot >= 0 && name is not null)
+								if (id is not null && slot >= 0)
 								{
 									CharacterID charId = new(id, slot);
-									characterNameMap.Add(charId, name);
+									characterNameMap.Add(charId, name ?? $"Unknown-{id}-{slot}");
 									characterHistoryIndexMap.Add(charId, j);
 								}
 							}
